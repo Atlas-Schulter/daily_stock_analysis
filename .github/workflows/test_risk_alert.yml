@@ -7,7 +7,22 @@ on:
       - 'src/risk_alert.py'
       - 'tests/test_risk_alert.py'
       - '.github/workflows/test_risk_alert.yml'
+
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Execution mode'
+        required: true
+        type: choice
+        default: analyze
+        options:
+          - analyze
+          - webhook-test
+      send_discord:
+        description: 'Enable Discord notifications'
+        required: true
+        type: boolean
+        default: false
 
 jobs:
   test:
@@ -28,8 +43,11 @@ jobs:
       - name: Run unit tests
         run: python -m unittest discover -s tests -p "test_risk_alert.py" -v
 
-      - name: Run real stock analysis
+      - name: Run stock risk analysis
         env:
           RISK_DROP_THRESHOLD: '5.0'
           STOCK_CODES: 'NVDA,AAPL,TSLA'
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SEND_DISCORD: ${{ inputs.send_discord || false }}
+          WEBHOOK_TEST: ${{ inputs.mode == 'webhook-test' }}
         run: python src/risk_alert.py
