@@ -1,6 +1,9 @@
 
-import os
 import math
+import os
+import json
+import urllib.request
+import urllib.error
 
 
 def check_risk(
@@ -8,7 +11,7 @@ def check_risk(
     daily_change: float,
     threshold: float = 5.0
 ):
-    """Check whether a stock decline triggers an alert."""
+    """Return an alert if the daily loss reaches the threshold."""
     if not math.isfinite(threshold) or threshold <= 0:
         raise ValueError("threshold must be positive and finite")
 
@@ -30,19 +33,19 @@ def check_risk_from_quote(
     quote: dict,
     threshold: float = 5.0
 ):
-    """Check risk using a normalized market quote."""
-    stock_code = quote["code"]
-    daily_change = float(quote["change_pct"])
-
-    return check_risk(stock_code, daily_change, threshold)
+    """Evaluate risk using a normalized market quote."""
+    return check_risk(
+        quote["code"],
+        float(quote["change_pct"]),
+        threshold
+    )
 
 
 def get_stock_quote(stock_code: str):
-    """Fetch the latest two available daily closes."""
+    """Retrieve the latest two available daily closing prices."""
     import yfinance as yf
 
-    ticker = yf.Ticker(stock_code)
-    history = ticker.history(
+    history = yf.Ticker(stock_code).history(
         period="1mo",
         interval="1d",
         auto_adjust=True
@@ -56,30 +59,54 @@ def get_stock_quote(stock_code: str):
     if len(closes) < 2:
         raise ValueError(f"Insufficient data for {stock_code}")
 
-    previous_close = float(closes.iloc[-2])
-    latest_close = float(closes.iloc[-1])
+    previous = float(closes.iloc[-2])
+    latest = float(closes.iloc[-1])
 
-    if previous_close <= 0:
-        raise ValueError("Invalid previous close price")
+    if not math.isfinite(previous) or previous <= 0:
+        raise ValueError("Invalid previous close")
+    if not math.isfinite(latest):
+        raise ValueError("Invalid latest close")
 
-    daily_change = (
-        (latest_close - previous_close)
-        / previous_close
-        * 100
-    )
+    change_pct = (latest - previous) / previous * 100
 
     return {
         "code": stock_code,
-        "price": latest_close,
-        "change_pct": daily_change,
+        "price": latest,
+        "change_pct": change_pct,
         "date": str(closes.index[-1].date())
     }
 
 
-def main():
-    threshold = float(
-        os.getenv("RISK_DROP_THRESHOLD", "5.0")
+def send_discord(message: str):
+    """Send a message through the configured Discord webhook."""
+    webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+
+    if not webhook_url:
+        raise ValueError("DISCORD_WEBHOOK_URL is not configured")
+
+    payload = json.dumps({
+        "content": message
+    }).encode("utf-8")
+
+    request = urllib.request.Request(
+        webhook_url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "StockRiskAlert/1.0"
+        },
+        method="POST"
     )
+
+    with urllib.request.urlopen(request, timeout=20) as response:
+        if response.status not in (200, 204):
+            raise RuntimeError(
+                f"Discord returned HTTP {response.status}"
+            )
+
+
+def main():
+    threshold = float(os.getenv("RISK_DROP_THRESHOLD", "5.0"))
 
     stock_codes = [
         code.strip().upper()
@@ -89,10 +116,31 @@ def main():
         if code.strip()
     ]
 
-    print("Starting real-time stock risk analysis...")
+    send_enabled = os.getenv(
+        "SEND_DISCORD", "false"
+    ).lower() == "true"
+
+    webhook_test = os.getenv(
+        "WEBHOOK_TEST", "false"
+    ).lower() == "true"
+
+    # Explicit connection test; no stock data required.
+    if webhook_test:
+        if not send_enabled:
+            raise ValueError("WEBHOOK_TEST requires SEND_DISCORD=true")
+
+        send_discord(
+            "✅ Stock Risk Alert: Discord connection test successful."
+        )
+        print("Discord connection test successful.")
+        return
+
+    print("Starting stock risk analysis...")
     print(f"Risk threshold: -{threshold}%")
+    print(f"Discord notifications enabled: {send_enabled}")
 
     failed = []
+    alerts = []
 
     for stock_code in stock_codes:
         try:
@@ -101,22 +149,28 @@ def main():
             print(
                 f"\nStock: {quote['code']}\n"
                 f"Data Date: {quote['date']}\n"
-                f"Latest Close: ${quote['price']:.2f}\n"
+                f"Latest Close: {quote['price']:.2f}\n"
                 f"Daily Change: {quote['change_pct']:.2f}%"
             )
 
-            alert = check_risk_from_quote(
-                quote, threshold
-            )
+            alert = check_risk_from_quote(quote, threshold)
 
             if alert:
                 print(alert)
+                alerts.append(alert)
             else:
                 print("No risk alert triggered.")
 
         except Exception as error:
             failed.append(stock_code)
-            print(f"Error fetching {stock_code}: {error}")
+            print(f"Error analyzing {stock_code}: {error}")
+
+    if alerts and send_enabled:
+        message = "\n\n".join(alerts)
+        send_discord(message[:2000])
+        print("Discord risk alert sent successfully.")
+    elif alerts:
+        print("Risk alerts detected; Discord sending disabled.")
 
     if failed:
         raise RuntimeError(
