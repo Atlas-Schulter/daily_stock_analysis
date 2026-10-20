@@ -9,6 +9,9 @@ on:
       - 'tests/test_risk_integration.py'
       - '.github/workflows/test_risk_alert.yml'
 
+  schedule:
+    - cron: '0 23 * * 1-5'
+
   workflow_dispatch:
     inputs:
       mode:
@@ -24,6 +27,9 @@ on:
         required: true
         type: boolean
         default: false
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -49,6 +55,6 @@ jobs:
           RISK_DROP_THRESHOLD: '5.0'
           STOCK_CODES: 'NVDA,AAPL,TSLA'
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          SEND_DISCORD: ${{ inputs.send_discord || false }}
-          WEBHOOK_TEST: ${{ inputs.mode == 'webhook-test' }}
+          SEND_DISCORD: ${{ github.event_name == 'workflow_dispatch' && inputs.send_discord || false }}
+          WEBHOOK_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'webhook-test' }}
         run: python src/risk_alert.py
