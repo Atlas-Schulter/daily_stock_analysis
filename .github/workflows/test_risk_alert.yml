@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - 'src/risk_alert.py'
+      - 'src/alert_state.py'
+      - 'tests/test_risk_state.py'
       - 'tests/test_risk_alert.py'
       - 'tests/test_risk_integration.py'
       - '.github/workflows/test_risk_alert.yml'
