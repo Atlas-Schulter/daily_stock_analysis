@@ -1,5 +1,6 @@
 
 import os
+import math
 
 
 def check_risk(
@@ -7,14 +8,12 @@ def check_risk(
     daily_change: float,
     threshold: float = 5.0
 ):
-    """
-    Check whether a stock's daily loss exceeds the threshold.
+    """Check whether a stock decline triggers an alert."""
+    if not math.isfinite(threshold) or threshold <= 0:
+        raise ValueError("threshold must be positive and finite")
 
-    daily_change: Daily percentage change.
-    Example: -5.8 means a 5.8% decline.
-    """
-    if threshold <= 0:
-        raise ValueError("threshold must be positive")
+    if not math.isfinite(daily_change):
+        raise ValueError("daily_change must be finite")
 
     if daily_change <= -threshold:
         return (
@@ -31,55 +30,98 @@ def check_risk_from_quote(
     quote: dict,
     threshold: float = 5.0
 ):
-    """
-    Check stock risk using a market quote dictionary.
-
-    Expected format:
-    {
-        "code": "NVDA",
-        "change_pct": -5.8
-    }
-    """
+    """Check risk using a normalized market quote."""
     stock_code = quote["code"]
     daily_change = float(quote["change_pct"])
 
-    return check_risk(
-        stock_code,
-        daily_change,
-        threshold
+    return check_risk(stock_code, daily_change, threshold)
+
+
+def get_stock_quote(stock_code: str):
+    """Fetch the latest two available daily closes."""
+    import yfinance as yf
+
+    ticker = yf.Ticker(stock_code)
+    history = ticker.history(
+        period="1mo",
+        interval="1d",
+        auto_adjust=True
     )
+
+    if history.empty:
+        raise ValueError(f"No market data for {stock_code}")
+
+    closes = history["Close"].dropna()
+
+    if len(closes) < 2:
+        raise ValueError(f"Insufficient data for {stock_code}")
+
+    previous_close = float(closes.iloc[-2])
+    latest_close = float(closes.iloc[-1])
+
+    if previous_close <= 0:
+        raise ValueError("Invalid previous close price")
+
+    daily_change = (
+        (latest_close - previous_close)
+        / previous_close
+        * 100
+    )
+
+    return {
+        "code": stock_code,
+        "price": latest_close,
+        "change_pct": daily_change,
+        "date": str(closes.index[-1].date())
+    }
 
 
 def main():
-    # Configurable risk threshold
     threshold = float(
         os.getenv("RISK_DROP_THRESHOLD", "5.0")
     )
 
-    # Sample market data for testing
-    # TODO: Replace with actual market data
-    quotes = [
-        {"code": "NVDA", "change_pct": -5.8},
-        {"code": "AAPL", "change_pct": -2.0},
-        {"code": "TSLA", "change_pct": -5.0}
+    stock_codes = [
+        code.strip().upper()
+        for code in os.getenv(
+            "STOCK_CODES", "NVDA,AAPL,TSLA"
+        ).split(",")
+        if code.strip()
     ]
 
-    print("Starting stock risk analysis...")
+    print("Starting real-time stock risk analysis...")
+    print(f"Risk threshold: -{threshold}%")
 
-    for quote in quotes:
-        alert = check_risk_from_quote(
-            quote,
-            threshold
-        )
+    failed = []
 
-        if alert:
-            print(alert)
-            print("-" * 40)
-        else:
+    for stock_code in stock_codes:
+        try:
+            quote = get_stock_quote(stock_code)
+
             print(
-                f"{quote['code']}: "
-                f"No risk alert triggered."
+                f"\nStock: {quote['code']}\n"
+                f"Data Date: {quote['date']}\n"
+                f"Latest Close: ${quote['price']:.2f}\n"
+                f"Daily Change: {quote['change_pct']:.2f}%"
             )
+
+            alert = check_risk_from_quote(
+                quote, threshold
+            )
+
+            if alert:
+                print(alert)
+            else:
+                print("No risk alert triggered.")
+
+        except Exception as error:
+            failed.append(stock_code)
+            print(f"Error fetching {stock_code}: {error}")
+
+    if failed:
+        raise RuntimeError(
+            "Failed to analyze: " + ", ".join(failed)
+        )
 
 
 if __name__ == "__main__":
