@@ -1019,21 +1019,48 @@ class GeminiAnalyzer:
         effective_kwargs.update(extra_litellm_params(model, config))
         return litellm.completion(**effective_kwargs)
 
-    def _normalize_usage(self, usage_obj: Any) -> Dict[str, Any]:
-        """Normalize usage objects from LiteLLM responses/chunks."""
-        if not usage_obj:
-            return {}
+    
+def _normalize_usage(self, usage_obj: Any) -> Dict[str, Any]:
+    """Normalize token usage; preserve missing usage as empty."""
 
-        def _get_value(key: str) -> int:
-            if isinstance(usage_obj, dict):
-                return int(usage_obj.get(key) or 0)
-            return int(getattr(usage_obj, key, 0) or 0)
+    if usage_obj is None:
+        return {}
 
-        return {
-            "prompt_tokens": _get_value("prompt_tokens"),
-            "completion_tokens": _get_value("completion_tokens"),
-            "total_tokens": _get_value("total_tokens"),
-        }
+    def get_value(key):
+        if isinstance(usage_obj, dict):
+            value = usage_obj.get(key)
+        else:
+            value = getattr(usage_obj, key, None)
+
+        if value is None:
+            return None
+
+        return int(value)
+
+    prompt = get_value("prompt_tokens")
+    completion = get_value("completion_tokens")
+    total = get_value("total_tokens")
+
+    # Usage was not actually provided
+    if prompt is None and completion is None and total is None:
+        return {}
+
+    # At least one of prompt/completion must be available
+    if prompt is None and completion is None:
+        return {}
+
+    prompt = prompt or 0
+    completion = completion or 0
+
+    if total is None:
+        total = prompt + completion
+
+    return {
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        "total_tokens": total,
+    }
+
 
     def _extract_stream_text(self, chunk: Any) -> str:
         """Extract provider-agnostic text delta from a LiteLLM streaming chunk."""
@@ -1117,6 +1144,11 @@ class GeminiAnalyzer:
         if progress_callback and chars_received > 0:
             progress_callback(chars_received)
 
+        if not usage or usage.get("total_tokens", 0) == 0:
+            logger.warning(
+                "[LLMOps] Missing streaming token usage: model=%s",
+                model,
+            )
         return response_text, usage
 
     def _call_litellm(
@@ -1179,7 +1211,11 @@ class GeminiAnalyzer:
                     try:
                         stream_response = self._dispatch_litellm_completion(
                             model,
-                            {**call_kwargs, "stream": True},
+                            {
+                                **call_kwargs,
+                                "stream": True,
+                                "stream_options": {"include_usage": True},
+                            },
                             config=config,
                             use_channel_router=use_channel_router,
                             router_model_names=router_model_names,
