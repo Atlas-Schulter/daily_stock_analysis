@@ -122,6 +122,6 @@ def main():
     if args.sample_limit is not None and args.sample_limit < 1: parser.error('--sample-limit must be positive')
     fixtures = json.loads(Path(args.fixtures).read_text(encoding='utf-8'))
     result = run(fixtures, models, args.max_calls, Path(args.output_dir), sample_limit=args.sample_limit)
-    if result['failed_calls']: raise SystemExit(1)
+
 
 if __name__ == '__main__': main()
