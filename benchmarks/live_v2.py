@@ -46,6 +46,20 @@ def call_model(model, prompt):
     response = litellm.completion(model=resolved,
         messages=[{'role':'system','content':SYSTEM_MESSAGE},{'role':'user','content':prompt}],
         temperature=0, max_tokens=1500, timeout=90, num_retries=0, stream=False, **params)
+
+    # LLM Response Debug
+    choice = response.choices[0]
+    usage = getattr(response, 'usage', None)
+    content = choice.message.content
+    
+    print(
+        f"[LLM Debug] model={model} "
+        f"finish_reason={getattr(choice, 'finish_reason', None)} "
+        f"input_tokens={getattr(usage, 'prompt_tokens', None)} "
+        f"output_tokens={getattr(usage, 'completion_tokens', None)} "
+        f"content_length={len(content or '')}",
+        flush=True
+    )
     usage = getattr(response, 'usage', None)
     input_tokens = getattr(usage, 'prompt_tokens', None)
     output_tokens = getattr(usage, 'completion_tokens', None)
