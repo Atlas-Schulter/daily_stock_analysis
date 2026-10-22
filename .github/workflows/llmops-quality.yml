@@ -1,0 +1,23 @@
+name: LLMOps Quality Checks
+
+on:
+  push:
+    paths:
+      - 'src/llmops_metrics.py'
+      - 'tests/test_llmops_metrics.py'
+      - '.github/workflows/llmops-quality.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  llmops-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Run LLMOps tests
+        run: python -m unittest discover -s tests -p 'test_llmops_metrics.py' -v
