@@ -1020,46 +1020,46 @@ class GeminiAnalyzer:
         return litellm.completion(**effective_kwargs)
 
     
-def _normalize_usage(self, usage_obj: Any) -> Dict[str, Any]:
-    """Normalize token usage; preserve missing usage as empty."""
+    def _normalize_usage(self, usage_obj: Any) -> Dict[str, Any]:
+        """Normalize token usage; preserve missing usage as empty."""
 
-    if usage_obj is None:
-        return {}
+        if usage_obj is None:
+            return {}
 
-    def get_value(key):
-        if isinstance(usage_obj, dict):
-            value = usage_obj.get(key)
-        else:
-            value = getattr(usage_obj, key, None)
+        def get_value(key):
+            if isinstance(usage_obj, dict):
+                value = usage_obj.get(key)
+            else:
+                value = getattr(usage_obj, key, None)
 
-        if value is None:
-            return None
+            if value is None:
+                return None
 
-        return int(value)
+            return int(value)
 
-    prompt = get_value("prompt_tokens")
-    completion = get_value("completion_tokens")
-    total = get_value("total_tokens")
+        prompt = get_value("prompt_tokens")
+        completion = get_value("completion_tokens")
+        total = get_value("total_tokens")
 
-    # Usage was not actually provided
-    if prompt is None and completion is None and total is None:
-        return {}
+        # Usage was not actually provided
+        if prompt is None and completion is None and total is None:
+            return {}
 
-    # At least one of prompt/completion must be available
-    if prompt is None and completion is None:
-        return {}
+        # At least one of prompt/completion must be available
+        if prompt is None and completion is None:
+            return {}
 
-    prompt = prompt or 0
-    completion = completion or 0
+        prompt = prompt or 0
+        completion = completion or 0
 
-    if total is None:
-        total = prompt + completion
+        if total is None:
+            total = prompt + completion
 
-    return {
-        "prompt_tokens": prompt,
-        "completion_tokens": completion,
-        "total_tokens": total,
-    }
+        return {
+            "prompt_tokens": prompt,
+            "completion_tokens": completion,
+            "total_tokens": total,
+        }
 
 
     def _extract_stream_text(self, chunk: Any) -> str:
