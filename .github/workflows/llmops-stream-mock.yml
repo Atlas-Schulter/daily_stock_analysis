@@ -1,0 +1,23 @@
+name: LLM Streaming Mock Tests
+
+on:
+  push:
+    paths:
+      - 'src/analyzer.py'
+      - 'tests/test_stream_usage_mock.py'
+      - '.github/workflows/llmops-stream-mock.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mock-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Test actual streaming methods with fake chunks
+        run: python -m unittest discover -s tests -p 'test_stream_usage_mock.py' -v
