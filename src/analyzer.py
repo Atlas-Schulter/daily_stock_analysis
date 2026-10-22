@@ -1431,6 +1431,12 @@ class GeminiAnalyzer:
 
             persist_llm_usage(llm_usage, model_used, call_type="analysis", stock_code=code)
 
+            try:
+                from src.llmops_metrics import record_evaluation
+                record_evaluation(result.to_dict(), model_used, code)
+            except Exception as telemetry_error:
+                logger.warning('[LLMOps evaluation] failed: %s', telemetry_error)
+
             logger.info(f"[LLM解析] {name}({code}) 分析完成: {result.trend_prediction}, 评分 {result.sentiment_score}")
 
             return result
