@@ -5,9 +5,11 @@ on:
     paths:
       - 'src/risk_alert.py'
       - 'src/alert_state.py'
+      - 'src/observability.py'
       - 'tests/test_risk_alert.py'
       - 'tests/test_risk_integration.py'
       - 'tests/test_risk_state.py'
+      - 'tests/test_observability.py'
       - '.github/workflows/test_risk_alert.yml'
   schedule:
     - cron: '0 1 * * 2-6'
@@ -42,7 +44,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Run isolated unit and integration tests
-        run: python -m unittest discover -s tests -p 'test_risk_*.py' -v
+        run: |
+          python -m unittest discover -s tests -p 'test_risk_*.py' -v
+          python -m unittest discover -s tests -p 'test_observability.py' -v
 
   analyze:
     needs: [unit-tests]
@@ -74,9 +78,31 @@ jobs:
           SEND_DISCORD: ${{ github.event_name == 'schedule' || inputs.send_discord == true }}
           WEBHOOK_TEST: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'webhook-test' }}
         run: python src/risk_alert.py
+      - name: Upload run metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: risk-metrics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/risk_metrics.json
+          if-no-files-found: warn
+          retention-days: 30
       - name: Save alert history cache
         if: always()
         uses: actions/cache/save@v4
         with:
           path: .state/alert_state.json
           key: stock-risk-history-${{ github.run_id }}-${{ github.run_attempt }}
+
+  failure-notification:
+    needs: [analyze]
+    if: always() && needs.analyze.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Notify Discord on analysis failure
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python src/observability.py
