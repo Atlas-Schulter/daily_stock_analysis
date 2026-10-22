@@ -1,0 +1,187 @@
+{
+  "schema_version": 2,
+  "cases": [
+    {
+      "case_id": "synthetic_NVDA_001",
+      "category": "extreme_drop",
+      "stock_code": "NVDA",
+      "as_of_date": "2026-01-15",
+      "close": 120,
+      "change_pct": -6,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_AAPL_002",
+      "category": "normal_rise",
+      "stock_code": "AAPL",
+      "as_of_date": "2026-01-15",
+      "close": 230,
+      "change_pct": 3.2,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_TSLA_003",
+      "category": "normal_drop",
+      "stock_code": "TSLA",
+      "as_of_date": "2026-01-15",
+      "close": 200,
+      "change_pct": -2.1,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_AMD_004",
+      "category": "normal_rise",
+      "stock_code": "AMD",
+      "as_of_date": "2026-01-15",
+      "close": 140,
+      "change_pct": 1.4,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_MSFT_005",
+      "category": "normal_drop",
+      "stock_code": "MSFT",
+      "as_of_date": "2026-01-15",
+      "close": 410,
+      "change_pct": -1.3,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_GOOGL_006",
+      "category": "normal_rise",
+      "stock_code": "GOOGL",
+      "as_of_date": "2026-01-15",
+      "close": 185,
+      "change_pct": 2.5,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_META_007",
+      "category": "normal_drop",
+      "stock_code": "META",
+      "as_of_date": "2026-01-15",
+      "close": 520,
+      "change_pct": -3.4,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_SPY_008",
+      "category": "flat",
+      "stock_code": "SPY",
+      "as_of_date": "2026-01-15",
+      "close": 600,
+      "change_pct": 0.03,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_QQQ_009",
+      "category": "flat",
+      "stock_code": "QQQ",
+      "as_of_date": "2026-01-15",
+      "close": 510,
+      "change_pct": -0.02,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_PLTR_010",
+      "category": "extreme_drop",
+      "stock_code": "PLTR",
+      "as_of_date": "2026-01-15",
+      "close": 70,
+      "change_pct": -12.5,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_APLD_011",
+      "category": "extreme_drop",
+      "stock_code": "APLD",
+      "as_of_date": "2026-01-15",
+      "close": 25,
+      "change_pct": -10.2,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_AAOI_012",
+      "category": "extreme_rise",
+      "stock_code": "AAOI",
+      "as_of_date": "2026-01-15",
+      "close": 36,
+      "change_pct": 14.6,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_WDC_013",
+      "category": "extreme_rise",
+      "stock_code": "WDC",
+      "as_of_date": "2026-01-15",
+      "close": 90,
+      "change_pct": 10.4,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_CGNX_014",
+      "category": "precision",
+      "stock_code": "CGNX",
+      "as_of_date": "2026-01-15",
+      "close": 31,
+      "change_pct": 0.01,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_IREN_015",
+      "category": "precision",
+      "stock_code": "IREN",
+      "as_of_date": "2026-01-15",
+      "close": 0.75,
+      "change_pct": -0.15,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_ORCL_016",
+      "category": "missing_data",
+      "stock_code": "ORCL",
+      "as_of_date": "2026-01-15",
+      "close": null,
+      "change_pct": null,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_CRM_017",
+      "category": "missing_data",
+      "stock_code": "CRM",
+      "as_of_date": "2026-01-15",
+      "close": null,
+      "change_pct": null,
+      "synthetic": true
+    },
+    {
+      "case_id": "synthetic_INTC_018",
+      "category": "contradictory",
+      "stock_code": "INTC",
+      "as_of_date": "2026-01-15",
+      "close": 100,
+      "change_pct": 2.5,
+      "synthetic": true,
+      "untrusted_headline_change_pct": -2.5
+    },
+    {
+      "case_id": "synthetic_UBER_019",
+      "category": "contradictory",
+      "stock_code": "UBER",
+      "as_of_date": "2026-01-15",
+      "close": 80,
+      "change_pct": -4,
+      "synthetic": true,
+      "untrusted_headline_change_pct": 4
+    },
+    {
+      "case_id": "synthetic_AMZN_020",
+      "category": "normal_rise",
+      "stock_code": "AMZN",
+      "as_of_date": "2026-01-15",
+      "close": 215,
+      "change_pct": 1.8,
+      "synthetic": true
+    }
+  ]
+}
