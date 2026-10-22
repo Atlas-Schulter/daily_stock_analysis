@@ -45,7 +45,7 @@ def call_model(model, prompt):
         params.update(api_base='https://aihubmix.com/v1', api_key=key)
     response = litellm.completion(model=resolved,
         messages=[{'role':'system','content':SYSTEM_MESSAGE},{'role':'user','content':prompt}],
-        temperature=0, max_tokens=1000, timeout=90, num_retries=0, stream=False, **params)
+        temperature=0, max_tokens=1500, timeout=90, num_retries=0, stream=False, **params)
     usage = getattr(response, 'usage', None)
     input_tokens = getattr(usage, 'prompt_tokens', None)
     output_tokens = getattr(usage, 'completion_tokens', None)
