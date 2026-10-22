@@ -1,0 +1,70 @@
+name: Live Benchmark V2 (20 Cases)
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: 'Comma-separated models, e.g. aihubmix/deepseek-v4.1-flash'
+        required: true
+        default: 'aihubmix/deepseek-v4.1-flash'
+        type: string
+      sample_limit:
+        description: 'Cases per model (20 for full suite)'
+        required: true
+        default: '20'
+        type: choice
+        options: ['1', '5', '10', '20']
+      max_calls:
+        description: 'Maximum total calls (must cover cases x models)'
+        required: true
+        default: '20'
+        type: choice
+        options: ['1', '5', '10', '20', '40', '60']
+      confirm_live:
+        description: 'I understand real API usage can incur costs'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  live-benchmark-v2:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_live == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install LiteLLM
+        run: python -m pip install 'litellm>=1,<2'
+      - name: Run offline evaluator and live-runner tests
+        run: |
+          python -m unittest discover -s tests -p 'test_benchmark_v2.py' -v
+          python -m unittest discover -s tests -p 'test_live_v2.py' -v
+      - name: Execute model comparison
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          AIHUBMIX_API_KEY: ${{ secrets.AIHUBMIX_API_KEY }}
+          MODELS: ${{ inputs.models }}
+          SAMPLE_LIMIT: ${{ inputs.sample_limit }}
+          MAX_CALLS: ${{ inputs.max_calls }}
+        run: |
+          python -m benchmarks.live_v2 \
+            --models "$MODELS" \
+            --sample-limit "$SAMPLE_LIMIT" \
+            --max-calls "$MAX_CALLS" \
+            --confirm-live
+      - name: Upload results even after partial failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-benchmark-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/live_v2/
+          if-no-files-found: warn
+          retention-days: 14
