@@ -310,3 +310,12 @@ jobs:
             echo "📜 最近日志（最后 30 行）:"
             tail -30 logs/stock_analysis_*.log 2>/dev/null || echo "无日志"
           fi
+
+      - name: Summarize LLM usage
+        if: always()
+        run: |
+          if [ -f "artifacts/llm_usage.jsonl" ]; then
+            python -c "import json; from src.llmops_metrics import summarize_usage; print(json.dumps(summarize_usage(), indent=2))"
+          else
+            echo "No LLM usage data generated in this run."
+          fi
