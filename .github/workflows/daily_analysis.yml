@@ -319,3 +319,21 @@ jobs:
           else
             echo "No LLM usage data generated in this run."
           fi
+
+      - name: Summarize LLM usage
+        if: always()
+        run: |
+          python -c "import json; from src.llmops_metrics import summarize_usage; print(json.dumps(summarize_usage(), indent=2))"
+
+      - name: Upload LLMOps telemetry
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: llmops-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/llm_usage.jsonl
+            artifacts/llm_evaluations.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+
+          
