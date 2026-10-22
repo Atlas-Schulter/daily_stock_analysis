@@ -2046,6 +2046,7 @@ class DatabaseManager:
         with self.session_scope() as session:
             session.add(row)
 
+    
     def get_llm_usage_summary(
         self,
         from_dt: datetime,
@@ -2135,6 +2136,24 @@ def persist_llm_usage(
         )
     except Exception as exc:
         logging.getLogger(__name__).warning("[LLM usage] failed to persist usage record: %s", exc)
+
+
+  # 2. Export to JSONL (new LLMOps functionality)
+    try:
+        from src.llmops_metrics import record_usage
+
+        record_usage(
+            usage,
+            model,
+            call_type,
+            stock_code
+        )
+    except Exception as telemetry_error:
+        logging.getLogger(__name__).warning(
+            "[LLMOps telemetry] failed to write JSONL: %s",
+            telemetry_error
+        )
+
 
 
 if __name__ == "__main__":
