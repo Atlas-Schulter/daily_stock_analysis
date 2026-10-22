@@ -1,0 +1,1 @@
+{"case_id":"synthetic_NVDA_001","model":"synthetic-example","report":{"analysis_summary":"Illustrative fixture report only","operation_advice":"Example","sentiment_score":25,"dashboard":{"core_conclusion":{"one_sentence":"Illustrative summary"}},"benchmark_observations":{"stock_code":"NVDA","as_of_date":"2026-01-15","close":120.0,"change_pct":-6.0}}}
