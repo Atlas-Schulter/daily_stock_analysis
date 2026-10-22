@@ -77,30 +77,77 @@ def _append(path, row):
         handle.write(json.dumps(row, ensure_ascii=False) + '\n')
 
 
+
 def litellm_call(model, prompt):
+    import os
     import litellm
+
+    # Select API provider
+    if model.startswith("aihubmix/"):
+        model_id = model.removeprefix("aihubmix/")
+
+        if not model_id:
+            raise ValueError("Missing AIHubMix model ID")
+
+        api_key = os.getenv("AIHUBMIX_API_KEY")
+        if not api_key:
+            raise ValueError("AIHUBMIX_API_KEY is missing")
+
+        model_name = f"openai/{model_id}"
+        provider_kwargs = {
+            "api_base": "https://aihubmix.com/v1",
+            "api_key": api_key,
+        }
+    else:
+        model_name = model
+        provider_kwargs = {}
+
+    # Call actual model
     reply = litellm.completion(
-        model=model,
-        messages=[{'role': 'user', 'content': prompt}],
+        model=model_name,
+        messages=[
+            {"role": "user", "content": prompt}
+        ],
         temperature=0,
         max_tokens=700,
         timeout=60,
         num_retries=0,
+        **provider_kwargs,
     )
+
     result = reply.choices[0].message.content
-    usage = reply.usage
+    usage = getattr(reply, "usage", None)
+
     token_counts = {
-        'prompt_tokens': getattr(usage, 'prompt_tokens', None),
-        'completion_tokens': getattr(usage, 'completion_tokens', None),
+        "prompt_tokens": getattr(
+            usage, "prompt_tokens", None
+        ),
+        "completion_tokens": getattr(
+            usage, "completion_tokens", None
+        ),
     }
+
+    # Estimate API cost
     cost = None
-    try:
-        cost = litellm.completion_cost(completion_response=reply)
-        if cost is not None:
-            cost = float(cost)
-    except Exception:
-        pass
-    return {'content': result, 'usage': token_counts, 'estimated_cost_usd': cost}
+
+    # LiteLLM's public price table may not match
+    # AIHubMix's actual billing.
+    if not model.startswith("aihubmix/"):
+        try:
+            cost = litellm.completion_cost(
+                completion_response=reply
+            )
+            if cost is not None:
+                cost = float(cost)
+        except Exception:
+            pass
+
+    return {
+        "content": result,
+        "usage": token_counts,
+        "estimated_cost_usd": cost,
+    }
+
 
 
 def main():
