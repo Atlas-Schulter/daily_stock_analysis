@@ -5,6 +5,11 @@ import os
 import urllib.request
 
 try:
+    from src.observability import emit, RunMetrics
+except ModuleNotFoundError:
+    from observability import emit, RunMetrics
+
+try:
     from src.alert_state import AlertState
 except ModuleNotFoundError:
     from alert_state import AlertState
@@ -103,9 +108,28 @@ def main():
             print(f"Market data error for {symbol}: {exc}")
     summary = process_quotes(quotes, threshold, send_enabled)
     print(f"Summary: {summary}")
-    if failures:
-        raise RuntimeError("Market data failed for: " + ", ".join(failures))
+    return summary, len(quotes), len(failures), failures
+
+
+def run_observed():
+    metrics = RunMetrics()
+    emit("run_started", workflow="stock-risk-alert")
+    try:
+        result = main()
+        if result is not None:
+            summary, checked, error_count, failures = result
+            metrics.data.update(stocks_checked=checked, market_data_errors=error_count,
+                                alerts_detected=summary["alerts"], alerts_sent=summary["sent"],
+                                duplicates_skipped=summary["duplicates"])
+            if failures:
+                raise RuntimeError("Market data failed for: " + ", ".join(failures))
+        metrics.finish("success")
+    except Exception as exc:
+        emit("run_failed", level="ERROR", error_type=type(exc).__name__, message=str(exc)[:300])
+        metrics.finish("failure")
+        raise
 
 
 if __name__ == "__main__":
-    main()
+    run_observed()
+
