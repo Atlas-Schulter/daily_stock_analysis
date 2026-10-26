@@ -1,0 +1,92 @@
+name: Risk Alert Container CI CD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docker/risk-alert.Dockerfile'
+      - 'src/risk_alert.py'
+      - 'src/alert_state.py'
+      - 'src/observability.py'
+      - 'tests/test_risk_alert.py'
+      - 'tests/test_risk_integration.py'
+      - 'tests/test_risk_state.py'
+      - 'tests/test_observability.py'
+      - '.github/workflows/risk-alert-container.yml'
+  pull_request:
+    paths:
+      - 'docker/risk-alert.Dockerfile'
+      - 'src/risk_alert.py'
+      - 'src/alert_state.py'
+      - 'src/observability.py'
+      - '.github/workflows/risk-alert-container.yml'
+  workflow_dispatch:
+    inputs:
+      publish_image:
+        description: 'Publish validated image to GHCR?'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  container-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Run risk module tests
+        run: |
+          python -m unittest discover -s tests -p 'test_risk_*.py' -v
+          python -m unittest discover -s tests -p 'test_observability.py' -v
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build local image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/risk-alert.Dockerfile
+          load: true
+          push: false
+          tags: risk-alert:ci
+
+      - name: Container smoke test (offline, no notifications)
+        run: |
+          docker run --rm --network none --entrypoint python risk-alert:ci \
+            -c 'from src.risk_alert import check_risk; assert check_risk("NVDA", -6, 5) is not None; assert check_risk("AAPL", -1, 5) is None; print("Container smoke test passed")'
+
+      - name: Set registry image name
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_image && github.ref == 'refs/heads/main' }}
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/risk-alert" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        if: ${{ steps.image.outcome == 'success' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish image (manual opt-in only)
+        if: ${{ steps.image.outcome == 'success' }}
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}
+        run: |
+          docker tag risk-alert:ci "$IMAGE:sha-${GITHUB_SHA::12}"
+          docker push "$IMAGE:sha-${GITHUB_SHA::12}"
+          echo "Published $IMAGE:sha-${GITHUB_SHA::12}" >> "$GITHUB_STEP_SUMMARY"
