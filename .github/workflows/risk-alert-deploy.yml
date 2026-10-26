@@ -1,0 +1,90 @@
+name: Risk Alert Container Deployment
+
+on:
+  schedule:
+    - cron: '0 1 * * 2-6'
+  workflow_dispatch:
+    inputs:
+      send_discord:
+        description: 'Send real Discord notifications?'
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: daily-stock-risk-alert
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: ghcr.io/atlas-schulter/daily_stock_analysis/risk-alert:sha-1f0116573f08
+      RISK_DROP_THRESHOLD: '5.0'
+      STOCK_CODES: 'NVDA,AAPL,TSLA'
+    steps:
+      - name: Checkout for cache and failure notifier
+        uses: actions/checkout@v5
+
+      - name: Restore sent-alert history
+        uses: actions/cache/restore@v4
+        with:
+          path: .state/alert_state.json
+          key: stock-risk-history-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            stock-risk-history-
+
+      - name: Prepare writable mounts
+        run: mkdir -p .state artifacts
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull published image
+        run: docker pull "$IMAGE"
+
+      - name: Run deployed container
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          SEND_DISCORD: ${{ github.event_name == 'schedule' || inputs.send_discord == true }}
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --env DISCORD_WEBHOOK_URL \
+            --env SEND_DISCORD \
+            --env RISK_DROP_THRESHOLD \
+            --env STOCK_CODES \
+            --volume "$GITHUB_WORKSPACE/.state:/app/.state" \
+            --volume "$GITHUB_WORKSPACE/artifacts:/app/artifacts" \
+            "$IMAGE"
+
+      - name: Upload risk metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-risk-metrics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/risk_metrics.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Save sent-alert history
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .state/alert_state.json
+          key: stock-risk-history-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Notify Discord if container failed
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python src/observability.py
