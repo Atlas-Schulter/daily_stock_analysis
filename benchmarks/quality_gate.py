@@ -46,7 +46,7 @@ def evaluate_case(report, fixture):
     sentence = dashboard.get('core_conclusion', {}).get('one_sentence') if isinstance(dashboard, dict) and isinstance(dashboard.get('core_conclusion'), dict) else None
     if not isinstance(sentence, str) or not sentence.strip():
         problems.append('invalid:dashboard.core_conclusion.one_sentence')
-    expected = fixture.get('benchmark_observations')
+    expected = fixture.get('benchmark_observations', fixture)
     actual = report.get('benchmark_observations')
     if not isinstance(expected, dict):
         problems.append('fixture_missing:benchmark_observations')
@@ -71,6 +71,8 @@ def evaluate_case(report, fixture):
 def run_gate(fixtures_path, artifacts_dir, min_pass_rate=1.0, require_pricing=False, sample_limit=None):
     fixtures = json.loads(Path(fixtures_path).read_text(encoding='utf-8'))
     cases = fixtures.get('cases', [])
+    if sample_limit is not None and sample_limit < 1:
+        raise ValueError('sample_limit must be positive')
     if sample_limit is not None:
         cases = cases[:sample_limit]
     if not cases:
@@ -127,9 +129,8 @@ def run_gate(fixtures_path, artifacts_dir, min_pass_rate=1.0, require_pricing=Fa
             passed += 1
         details.append({'model': model, 'case_id': case_id, 'passed': not problems, 'issues': sorted(set(problems))})
     # Errors are failures irrespective of whether a report exists.
-    actual_errors = [e for e in errors if e.get('error_type') != 'SkippedAfterRateLimit']
     rate = passed / len(expected_pairs)
-    ok = not actual_errors and not errors and rate >= min_pass_rate
+    ok = not errors and rate >= min_pass_rate
     return {
         'passed': ok, 'pass_rate': round(rate, 4), 'minimum_pass_rate': min_pass_rate,
         'expected_pairs': len(expected_pairs), 'quality_passed_pairs': passed,

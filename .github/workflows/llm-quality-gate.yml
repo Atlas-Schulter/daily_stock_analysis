@@ -9,6 +9,10 @@ on:
       - 'benchmarks/fixtures/**'
       - 'src/llmops_pricing.py'
       - 'tests/test_quality_gate.py'
+      - 'tests/test_live*.py'
+      - 'tests/test_benchmark_v2.py'
+      - 'config/llm_pricing.json'
+      - '.github/workflows/benchmark-live-v2.yml'
       - '.github/workflows/llm-quality-gate.yml'
   workflow_dispatch:
     inputs:
@@ -37,7 +41,10 @@ jobs:
         with:
           python-version: '3.11'
       - name: Test gate including negative cases
-        run: python -m unittest discover -s tests -p 'test_quality_gate.py' -v
+        run: |
+          python -m unittest discover -s tests -p 'test_live*.py' -v
+          python -m unittest discover -s tests -p 'test_benchmark_v2.py' -v
+          python -m unittest discover -s tests -p 'test_quality_gate.py' -v
 
   live-quality-gate:
     needs: offline-quality-tests
@@ -54,6 +61,7 @@ jobs:
       - name: Run real benchmark
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AIHUBMIX_API_KEY: ${{ secrets.AIHUBMIX_API_KEY }}
           BENCHMARK_MODELS: ${{ inputs.models }}

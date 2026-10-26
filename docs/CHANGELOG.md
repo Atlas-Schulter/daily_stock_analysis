@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [修复] Live Benchmark V2 合并重复 runner；保留失败 JSON 的 usage，汇总全部已知调用费用，统一严格校验并兼容实际平铺 fixture；补齐限流跳过、请求间隔和 Workflow 离线回归测试。
+
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
 

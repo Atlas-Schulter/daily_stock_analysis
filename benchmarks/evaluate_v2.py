@@ -4,8 +4,7 @@ import json
 import math
 from collections import defaultdict
 from pathlib import Path
-
-REQUIRED = ('analysis_summary', 'operation_advice', 'sentiment_score')
+from benchmarks.quality_gate import evaluate_case
 
 def load_jsonl(path):
     p = Path(path)
@@ -14,36 +13,27 @@ def load_jsonl(path):
     return [json.loads(line) for line in p.read_text(encoding='utf-8').splitlines() if line.strip()]
 
 def structure_ok(report):
-    if not isinstance(report, dict): return False
-    if any(report.get(k) is None or report.get(k) == '' for k in REQUIRED): return False
-    core = report.get('dashboard', {}).get('core_conclusion', {}) if isinstance(report.get('dashboard'),dict) else {}
-    if not isinstance(core,dict) or not core.get('one_sentence'): return False
-    try: return 0 <= float(report['sentiment_score']) <= 100
-    except (TypeError, ValueError): return False
+    problems = evaluate_case(report, {})
+    return not any(p == 'report_not_object' or p.startswith(('missing:', 'invalid:'))
+                   and p != 'invalid:benchmark_observations' for p in problems)
 
-def equal_num(a,b, tolerance=1e-6):
-    if a is None or b is None: return a is None and b is None
-    try: return math.isclose(float(a),float(b),rel_tol=0,abs_tol=tolerance)
-    except (TypeError,ValueError): return False
 
-def check_facts(case,report):
-    """Only check explicitly structured benchmark_observations; no free-text fact claims."""
-    obs=report.get('benchmark_observations') if isinstance(report,dict) else None
-    if not isinstance(obs,dict):return 0, 0, ['missing_benchmark_observations']
-    pairs=[('stock_code',case['stock_code']),('as_of_date',case['as_of_date']),('close',case['close']),('change_pct',case['change_pct'])]
-    errors=[]
-    for key,expected in pairs:
-        actual=obs.get(key)
-        matches=equal_num(actual,expected) if key in ('close','change_pct') else actual==expected
-        if not matches:errors.append(key)
-    return len(pairs),len(pairs)-len(errors),errors
+def check_facts(case, report):
+    """Use the same strict observation checks as the quality gate."""
+    obs = report.get('benchmark_observations') if isinstance(report, dict) else None
+    if not isinstance(obs, dict):
+        return 0, 0, ['missing_benchmark_observations']
+    problems = evaluate_case(report, case)
+    errors = [p.split(':', 1)[1] for p in problems
+              if p.startswith(('mismatch:', 'missing_observation:'))]
+    return 4, 4 - len(errors), errors
 
 def percentile(values,p):
     if not values:return None
     vals=sorted(values);idx=(len(vals)-1)*p;lo=math.floor(idx);hi=math.ceil(idx)
     return round(vals[lo]+(vals[hi]-vals[lo])*(idx-lo),3)
 
-def evaluate(fixtures,reports,usage):
+def evaluate(fixtures,reports,usage,models=None,errors=None):
     cases={c['case_id']:c for c in fixtures['cases']}
     usage_map={(u['case_id'],u['model']):u for u in usage}
     rows=[]
@@ -51,40 +41,51 @@ def evaluate(fixtures,reports,usage):
         case=cases.get(item.get('case_id'))
         if case is None: continue
         model=item['model']; report=item.get('report'); token=usage_map.get((item['case_id'],model),{})
-        n,correct,errors=check_facts(case,report)
+        n,correct,fact_errors=check_facts(case,report)
         structurally_ok=structure_ok(report)
         complete=structurally_ok and n==4 and correct==4
         it=token.get('input_tokens');ot=token.get('output_tokens');cost=token.get('estimated_cost_usd')
         row={'case_id':item['case_id'],'category':case['category'],'model':model,
              'structure_passed':structurally_ok,'fact_checked':n,'fact_correct':correct,
-             'fact_issues':errors,'task_success':complete,
+             'fact_issues':fact_errors,'task_success':complete,
              'input_tokens':it,'output_tokens':ot,'usage_missing':it is None or ot is None,
              'latency_seconds':token.get('latency_seconds'),'estimated_cost_usd':cost}
         rows.append(row)
     grouped=defaultdict(list)
     for row in rows:grouped[row['model']].append(row)
+    for model in list(models or []) + [u['model'] for u in usage] + [e['model'] for e in (errors or [])]:
+        grouped[model]
     summary={}
     for model,records in grouped.items():
         count=len(records);checked=sum(r['fact_checked'] for r in records);correct=sum(r['fact_correct'] for r in records)
-        latencies=[float(r['latency_seconds']) for r in records if r['latency_seconds'] is not None]
+        model_usage = [u for u in usage if u['model'] == model]
+        latencies=[float(u['latency_seconds']) for u in model_usage if u.get('latency_seconds') is not None]
         successes=sum(r['task_success'] for r in records)
-        costs=[r['estimated_cost_usd'] for r in records]
-        cost_complete=all(x is not None for x in costs)
+        costs=[u.get('estimated_cost_usd') for u in model_usage]
+        usage_pairs = {(u['model'], u['case_id']) for u in model_usage}
+        missing_report_usage = any((model, r['case_id']) not in usage_pairs for r in records)
+        unknown_failed_usage = any(e['model'] == model and e.get('error_type') != 'SkippedAfterRateLimit'
+                                   and (model, e['case_id']) not in usage_pairs for e in (errors or []))
+        cost_complete=bool(costs) and all(x is not None for x in costs) and not missing_report_usage and not unknown_failed_usage
         summary[model]={'evaluated_cases':count,'fixture_coverage':f'{count}/{len(cases)}',
-           'structural_pass_rate':round(sum(r['structure_passed'] for r in records)/count,4),
+           'structural_pass_rate':round(sum(r['structure_passed'] for r in records)/count,4) if count else None,
            'data_consistency_rate':round(correct/checked,4) if checked else None,
            'verifiable_fact_error_rate':round((checked-correct)/checked,4) if checked else None,
-           'task_success_rate':round(successes/count,4),
-           'missing_usage_rate':round(sum(r['usage_missing'] for r in records)/count,4),
+           'task_success_rate':round(successes/count,4) if count else None,
+           'missing_usage_rate':round(sum(r['usage_missing'] for r in records)/count,4) if count else None,
            'latency_p50_seconds':percentile(latencies,.5),'latency_p95_seconds':percentile(latencies,.95),
-           'input_tokens':sum(r['input_tokens'] or 0 for r in records),
-           'output_tokens':sum(r['output_tokens'] or 0 for r in records),
+           'input_tokens':sum(u.get('input_tokens') or 0 for u in model_usage),
+           'output_tokens':sum(u.get('output_tokens') or 0 for u in model_usage),
+           'usage_records':len(model_usage),
+           'known_cost_usd':round(sum(c for c in costs if c is not None),8),
            'cost_complete':cost_complete,
            'total_cost_usd':round(sum(costs),8) if cost_complete else None,
            'cost_per_success_usd':round(sum(costs)/successes,8) if cost_complete and successes else None}
     return {'schema_version':2,'fixture_cases':len(cases),'evaluated_records':len(rows),'by_model':summary,'records':rows,
             'notes':['Metrics use only submitted sample reports, not fabricated outputs for remaining fixtures.',
                      'Data consistency checks only structured observations, not narrative statements.',
+                     'Token, latency and cost metrics include all available usage, including invalid JSON responses.',
+                     'Unknown failed-call usage makes total cost incomplete; known_cost_usd is a partial estimate.',
                      'API retry/failure rate requires call-attempt events and is not inferred from successful records.']}
 
 def main():
