@@ -77,7 +77,7 @@ jobs:
           retention-days: 30
 
       - name: Save sent-alert history
-        if: always()
+        if: ${{ always() && hashFiles('.state/alert_state.json') != '' }}
         uses: actions/cache/save@v4
         with:
           path: .state/alert_state.json
