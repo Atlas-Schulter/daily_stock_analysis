@@ -11,8 +11,8 @@ on:
       - 'tests/test_risk_state.py'
       - 'tests/test_observability.py'
       - '.github/workflows/test_risk_alert.yml'
-  schedule:
-    - cron: '0 1 * * 2-6'
+
+
   workflow_dispatch:
     inputs:
       mode:
