@@ -1,36 +1,45 @@
 """Best-effort LLM usage telemetry and deterministic report checks (stdlib only)."""
+
 import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
+from src.llmops_pricing import estimate_cost
+
 
 def record_usage(usage, model, call_type, stock_code=None, output=None, prices=None):
-    """Append one model response's reported usage. Pricing is optional and explicit.
+    """Append one model's usage and estimated cost without storing raw content.
 
-    prices: {model: {'input_per_million': 0.5, 'output_per_million': 2.0}}
-    Never log prompts, raw model responses, API keys or webhook URLs.
+    The prices argument remains supported for manual per-model rate overrides.
+    If omitted, src.llmops_pricing loads config/llm_pricing.json.
+    Missing token usage remains explicitly flagged rather than treated as free.
     """
     usage = usage or {}
+    input_reported = usage.get('prompt_tokens') is not None
+    output_reported = usage.get('completion_tokens') is not None
     input_tokens = max(0, int(usage.get('prompt_tokens') or 0))
     output_tokens = max(0, int(usage.get('completion_tokens') or 0))
     model = str(model or 'unknown')
-    price = (prices or {}).get(model)
-    if price is not None:
-        in_price = float(price['input_per_million'])
-        out_price = float(price['output_per_million'])
-        if min(in_price, out_price) < 0:
-            raise ValueError('Token prices must be non-negative')
-        estimated_cost = round((input_tokens * in_price + output_tokens * out_price) / 1_000_000, 8)
-    else:
-        estimated_cost = None
+    now = datetime.now(timezone.utc)
+
+    pricing = estimate_cost(model, usage, prices=prices, timestamp=now)
     record = {
-        'timestamp': datetime.now(timezone.utc).isoformat(),
-        'event': 'llm_usage', 'model': model, 'call_type': str(call_type),
-        'stock_code': stock_code, 'input_tokens': input_tokens,
-        'output_tokens': output_tokens, 'total_tokens': input_tokens + output_tokens,
-        'estimated_cost_usd': estimated_cost,
-        'pricing_status': 'priced' if price is not None else 'unpriced',
+        'timestamp': now.isoformat(),
+        'event': 'llm_usage',
+        'model': model,
+        'call_type': str(call_type),
+        'stock_code': stock_code,
+        'input_tokens': input_tokens,
+        'output_tokens': output_tokens,
+        'total_tokens': input_tokens + output_tokens,
+        'usage_status': 'reported' if input_reported and output_reported else 'missing',
+        'estimated_cost_usd': pricing['estimated_cost_usd'],
+        'pricing_status': pricing['pricing_status'],
+        'pricing_tier': pricing['pricing_tier'],
+        'pricing_source': pricing['pricing_source'],
+        'pricing_rates_per_million': pricing['pricing_rates_per_million'],
+        'cached_input_tokens': pricing['cached_input_tokens'],
     }
     path = Path(output or os.getenv('LLMOPS_USAGE_FILE', 'artifacts/llm_usage.jsonl'))
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -40,7 +49,7 @@ def record_usage(usage, model, call_type, stock_code=None, output=None, prices=N
 
 
 def summarize_usage(path='artifacts/llm_usage.jsonl', prices=None):
-    """Summarize already-recorded rows; no API calls and no retroactive repricing."""
+    """Aggregate stored usage; never reprice historic rows or invoke an API."""
     items = []
     source = Path(path)
     if source.exists():
@@ -50,24 +59,36 @@ def summarize_usage(path='artifacts/llm_usage.jsonl', prices=None):
     models = {}
     for item in items:
         model = item['model']
-        row = models.setdefault(model, {'calls': 0, 'input_tokens': 0,
-                                        'output_tokens': 0, 'estimated_cost_usd': 0.0,
-                                        'unpriced_calls': 0})
+        row = models.setdefault(model, {
+            'calls': 0,
+            'input_tokens': 0,
+            'output_tokens': 0,
+            'estimated_cost_usd': 0.0,
+            'known_cost_usd': 0.0,
+            'unpriced_calls': 0,
+        })
         row['calls'] += 1
-        row['input_tokens'] += item['input_tokens']
-        row['output_tokens'] += item['output_tokens']
-        if item['estimated_cost_usd'] is None:
+        row['input_tokens'] += item['input_tokens'] or 0
+        row['output_tokens'] += item['output_tokens'] or 0
+        if item.get('estimated_cost_usd') is None:
             row['unpriced_calls'] += 1
         else:
-            row['estimated_cost_usd'] += item['estimated_cost_usd']
+            row['known_cost_usd'] += item['estimated_cost_usd']
     for row in models.values():
-        row['estimated_cost_usd'] = round(row['estimated_cost_usd'], 8)
-    return {'calls': len(items), 'by_model': models,
-            'cost_complete': all(i['estimated_cost_usd'] is not None for i in items)}
+        row['known_cost_usd'] = round(row['known_cost_usd'], 8)
+        # A partial sum must never be mistaken for the full API bill.
+        row['estimated_cost_usd'] = (
+            row['known_cost_usd'] if row['unpriced_calls'] == 0 else None
+        )
+    return {
+        'calls': len(items),
+        'by_model': models,
+        'cost_complete': all(i.get('estimated_cost_usd') is not None for i in items),
+    }
 
 
 def evaluate_report(report):
-    """Structural evaluation; does NOT assert trading advice or market facts are correct."""
+    """Structural evaluation; does NOT assert trading or market facts are correct."""
     if not isinstance(report, dict):
         return {'passed': False, 'missing_fields': ['report:not_an_object']}
     required = ['analysis_summary', 'operation_advice', 'sentiment_score']
@@ -90,11 +111,15 @@ def evaluate_report(report):
 
 def record_evaluation(report, model='unknown', stock_code=None,
                       output='artifacts/llm_evaluations.jsonl'):
-    """Persist only quality scores/missing-field names, not model output text."""
+    """Persist only quality scores and missing-field names, never model text."""
     result = evaluate_report(report)
-    record = {'timestamp': datetime.now(timezone.utc).isoformat(),
-              'event': 'llm_report_evaluation', 'model': str(model),
-              'stock_code': stock_code, **result}
+    record = {
+        'timestamp': datetime.now(timezone.utc).isoformat(),
+        'event': 'llm_report_evaluation',
+        'model': str(model),
+        'stock_code': stock_code,
+        **result,
+    }
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a', encoding='utf-8') as f:
