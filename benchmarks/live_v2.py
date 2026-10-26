@@ -7,6 +7,8 @@ import re
 import time
 from pathlib import Path
 from benchmarks.evaluate_v2 import evaluate, load_jsonl
+from src.llmops_pricing import estimate_cost 
+from datetime import datetime, timezone
 
 PROMPT_VERSION = "frozen-market-v2"
 SYSTEM_MESSAGE = "You are a data fidelity evaluator. Use only the supplied SYNTHETIC case data. Return valid JSON only; no markdown. Never invent missing facts."
@@ -63,13 +65,9 @@ def call_model(model, prompt):
     usage = getattr(response, 'usage', None)
     input_tokens = getattr(usage, 'prompt_tokens', None)
     output_tokens = getattr(usage, 'completion_tokens', None)
-    cost = None
-    if not model.startswith('aihubmix/'):
-        try:
-            candidate = litellm.completion_cost(completion_response=response)
-            if candidate is not None: cost = float(candidate)
-        except Exception: pass
-    return response.choices[0].message.content, input_tokens, output_tokens, cost
+    # Pricing is handled centrally by estimate_cost() in run().
+    # Keep the four-value return signature for existing mock tests.
+    return response.choices[0].message.content, input_tokens, output_tokens, None
 
 def append_jsonl(path, item):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,17 +92,54 @@ def run(fixtures, models, max_calls, output_dir, caller=call_model, sample_limit
         for case in cases:
             prompt = make_prompt(case)
             digest = hashlib.sha256((SYSTEM_MESSAGE+'\n'+prompt).encode('utf-8')).hexdigest()
+
+            # Record the request start time for time-dependent pricing.
+            started_at = datetime.now(timezone.utc)
             start = time.monotonic()
+            
             try:
                 content, in_tokens, out_tokens, cost = caller(model, prompt)
                 latency = round(time.monotonic() - start, 3)
+            
+                # Estimate cost using the shared model pricing catalog.
+                pricing = estimate_cost(
+                    model,
+                    {
+                        'prompt_tokens': in_tokens,
+                        'completion_tokens': out_tokens
+                    },
+                    timestamp=started_at
+                )
+            
+                # Preserve explicit costs returned by custom or mock callers.
+                if cost is not None:
+                    pricing['estimated_cost_usd'] = cost
+                    pricing['pricing_status'] = 'caller_reported'
+            
+                cost = pricing['estimated_cost_usd']
+            
                 report = decode_report(content)
+                
                 append_jsonl(reports_path, {'case_id':case['case_id'], 'model':model,
                              'report':report, 'prompt_version':PROMPT_VERSION, 'prompt_sha256':digest})
-                append_jsonl(usage_path, {'case_id':case['case_id'], 'model':model,
-                             'prompt_version':PROMPT_VERSION,'prompt_sha256':digest,
-                             'input_tokens':in_tokens,'output_tokens':out_tokens,
-                             'estimated_cost_usd':cost,'latency_seconds':latency})
+                # Save token usage and auditable pricing metadata.
+                append_jsonl(
+                    usage_path,
+                    {
+                        'case_id': case['case_id'],
+                        'model': model,
+                        'prompt_version': PROMPT_VERSION,
+                        'prompt_sha256': digest,
+                        'input_tokens': in_tokens,
+                        'output_tokens': out_tokens,
+                        'estimated_cost_usd': cost,
+                        'latency_seconds': latency,
+                        'pricing_status': pricing['pricing_status'],
+                        'pricing_tier': pricing['pricing_tier'],
+                        'pricing_source': pricing['pricing_source'],
+                        'pricing_rates_per_million': pricing['pricing_rates_per_million']
+                    }
+                )
                 print(f'OK {model} {case["case_id"]} {latency}s',flush=True)
             except Exception as exc:
                 failures += 1
