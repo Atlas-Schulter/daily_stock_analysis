@@ -66,3 +66,6 @@ Both workflows use the same runner and offline test commands. Quality checks acc
 
 Benchmark Workflow 用于手动比较，失败会写入产物；Quality Gate Workflow 自动触发时只做离线测试，手动启用真实调用后严格阻断错误、跳过及缺失报告。
 两个 Workflow 共用 runner 和测试命令，字段校验复用同一实现，兼容平铺和嵌套 fixture。
+
+Prompt `frozen-market-v2.1` explicitly maps the four top-level fixture fields into an output `benchmark_observations` object; arrays and strings remain invalid.
+Prompt v2.1 明确输入顶层字段到输出对象的映射；数组和字符串仍被 Gate 拒绝，未降低质量门槛。

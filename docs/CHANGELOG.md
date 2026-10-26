@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+- [修复] Benchmark Prompt v2.1 明确将 fixture 顶层四个字段复制到输出 benchmark_observations 对象，消除 Gemini 将其误判为缺失数据并返回数组或字符串的歧义；质量门槛保持不变。
+
 - [修复] Live Benchmark V2 合并重复 runner；保留失败 JSON 的 usage，汇总全部已知调用费用，统一严格校验并兼容实际平铺 fixture；补齐限流跳过、请求间隔和 Workflow 离线回归测试。
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->

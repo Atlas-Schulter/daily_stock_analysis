@@ -32,8 +32,16 @@ class LiveV2Tests(unittest.TestCase):
             self.assertEqual(len((Path(folder)/'errors.jsonl').read_text().splitlines()),1)
     def test_markdown_fenced_json(self):
         self.assertEqual(decode_report('```json\n{"a": 1}\n```'),{'a':1})
-    def test_prompt_has_fixture(self):
-        self.assertIn('NVDA',make_prompt(self.case))
+    def test_prompt_has_explicit_flat_to_nested_mapping(self):
+        case = dict(self.case, change_pct=None)
+        prompt = make_prompt(case)
+        self.assertIn('TOP-LEVEL', prompt)
+        self.assertIn('NEVER an array or string', prompt)
+        self.assertIn('preserving null as null', prompt)
+        payload = json.loads(prompt.split('Synthetic input fixture: ', 1)[1])
+        self.assertEqual(payload, case)
+        from benchmarks.live_v2 import PROMPT_VERSION
+        self.assertEqual(PROMPT_VERSION, 'frozen-market-v2.1')
 
 
 

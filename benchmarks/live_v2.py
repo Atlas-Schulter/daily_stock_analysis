@@ -11,19 +11,31 @@ from benchmarks.evaluate_v2 import evaluate, load_jsonl
 from src.llmops_pricing import estimate_cost 
 from datetime import datetime, timezone
 
-PROMPT_VERSION = "frozen-market-v2"
+PROMPT_VERSION = "frozen-market-v2.1"
 SYSTEM_MESSAGE = "You are a data fidelity evaluator. Use only the supplied SYNTHETIC case data. Return valid JSON only; no markdown. Never invent missing facts."
 
 def make_prompt(case):
     # Explicit keys, preserves null values in missing-data cases
     payload = json.dumps(case, sort_keys=True, ensure_ascii=False)
-    return ("Given the synthetic fixture below, produce JSON fields: analysis_summary (string), "
-            "operation_advice (non-personalized cautionary text), sentiment_score (0-100), "
-            "dashboard: {core_conclusion: {one_sentence: string}}, "
-            "benchmark_observations: {stock_code, as_of_date, close, change_pct}. "
-            "Copy the four benchmark_observations exactly from the fixture, including nulls. "
-            "If the fixture has missing or inconsistent data, explicitly say so without fabricating a cause. "
-            "Synthetic fixture: " + payload)
+    return (
+        "Given the SYNTHETIC input fixture below, return exactly one JSON object with these fields: "
+        "analysis_summary (non-empty string), operation_advice (non-personalized cautionary string), "
+        "sentiment_score (number from 0 to 100), "
+        "dashboard (object containing core_conclusion, an object containing one_sentence, a non-empty string), "
+        "benchmark_observations (an object, NEVER an array or string). "
+        "The INPUT fixture stores stock_code, as_of_date, close, and change_pct at the TOP LEVEL. "
+        "It does NOT have a benchmark_observations field; this is intentional, not missing data. "
+        "CREATE the OUTPUT benchmark_observations object with exactly these four keys. "
+        "Copy each value from the input's corresponding TOP-LEVEL key, preserving its JSON type "
+        "and preserving null as null. Do not invent or recalculate values. "
+        "For example, input {\"stock_code\":\"EXAMPLE\",\"as_of_date\":\"2026-01-01\","
+        "\"close\":100,\"change_pct\":null} must produce benchmark_observations "
+        "{\"stock_code\":\"EXAMPLE\",\"as_of_date\":\"2026-01-01\",\"close\":100,\"change_pct\":null}. "
+        "The example illustrates the mapping only; use the actual fixture values below. "
+        "If actual input values are missing or inconsistent, state that in analysis_summary "
+        "without fabricating a cause. Return JSON only. Synthetic input fixture: " + payload
+    )
+
 
 def decode_report(text):
     """Decode strict JSON, with support for complete fenced JSON output."""
