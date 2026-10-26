@@ -53,7 +53,7 @@ jobs:
         run: python -m pip install 'litellm>=1.0,<2'
       - name: Run real benchmark
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AIHUBMIX_API_KEY: ${{ secrets.AIHUBMIX_API_KEY }}
           BENCHMARK_MODELS: ${{ inputs.models }}
