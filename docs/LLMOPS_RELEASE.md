@@ -71,7 +71,7 @@ A previous green Quality Gate run is not reused as release approval: every relea
 
 Revert the integration commit to restore previous workflow behavior; this also removes the release block and must be described explicitly. No image was published by the rehearsal, so no registry rollback is needed. Real provider compatibility, billing, full backend integration, Docker build/push and production deployment are distinct verification layers. Dependencies remain version ranges, so the runtime environment is not fully reproducible.
 
-中文版要点：本次实现的是两条主应用镜像发布流水线的质量依赖；演练用合成报告验证通过和阻断，不实际发布镜像。真实 Gemini 小样本已有成功记录，现已核对 v2.1.0 真实 GHCR 发布成功记录；发布后的 pull/start 验收尚未执行。独立 risk-alert、桌面发行、生产部署和旧 Workflow 不在覆盖范围内。
+中文版要点：本次实现的是两条主应用镜像发布流水线的质量依赖；演练用合成报告验证通过和阻断，不实际发布镜像。真实 Gemini 小样本已有成功记录，现已核对 v2.1.0 真实 GHCR 发布成功记录；后续 v2.1.1 已完成按 digest 拉取及容器核心模块导入 smoke；FastAPI 启动、HTTP 健康检查和生产部署仍未验证。独立 risk-alert、桌面发行、生产部署和旧 Workflow 不在覆盖范围内。
 
 ## Integration change record
 
@@ -114,3 +114,23 @@ Original archived files: `quality_gate.json`, `release_provenance.json`, `benchm
 ### Reproduce the presentation
 
 Use [the three-minute walkthrough](DEMO_WALKTHROUGH.md). It uses saved evidence, requires no new paid calls, and does not publish another image. Documentation changes can be rolled back independently of release workflows.
+
+## Verified post-release v2.1.1
+
+Checked against the actual publish-job log on 2026-10-27. This supplements the historical v2.1.0 record above; the earlier run did not include this post-push step.
+
+| Field | Observed evidence |
+| --- | --- |
+| Run | [40571513998](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40571513998), success |
+| Tag / source SHA | `v2.1.1` / `3c97bd2fcb89fb62e07f9d8e8895a4aefd4f8dca` |
+| Real LLM Gate | Gemini 2.5 Flash, 2/2 cases, zero error rows |
+| Publish / post-push step | `Publish Docker image to GHCR` and `Verify published GHCR image`: success |
+| Published and pulled manifest digest | `sha256:5b48240e2f5c2c3690b518b3cca9f316bd3b7478b9694e6f9abcfda29ac90571` |
+| Pull log | `Digest: sha256:5b48240e2f5c2c3690b518b3cca9f316bd3b7478b9694e6f9abcfda29ac90571`, followed by `Status: Downloaded newer image` |
+| Container smoke | Python entrypoint imports config, storage, analyzer and notification; log prints `Post-release verification passed` |
+| Completion | Log marker at 2026-10-27 19:48:50 UTC (20:48:50 Europe/Berlin) |
+| Durable summary | [Verification snapshot](evidence/release-v2.1.1/post-release-verification.json), curated from the log, not an original Actions artifact |
+
+The default application entrypoint was overridden with Python. No full FastAPI server startup, HTTP health/readiness check, functional analysis request or production deployment was performed by this step. Publication already occurred before verification; a failed post-push check would mark the workflow failed, not remove or roll back the published image automatically.
+
+中文版：第一步已完成的范围是“同 digest 拉取 + 容器核心模块导入 smoke”，不是完整服务健康验收。文档更新不修改 Workflow，不重跑发布，也不改变原 v2.1.0 的归档证据。回滚本次文档提交不影响已发布镜像。

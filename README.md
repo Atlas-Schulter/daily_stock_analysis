@@ -30,7 +30,7 @@ python -m unittest discover -s tests -p 'test_quality_gate.py' -v
 python -m unittest discover -s tests -p 'test_release_gate.py' -v
 ```
 
-**范围：**发布 Gate 默认 Gemini、每模型 2 个案例、最多 6 次调用，要求 100% 通过；触发发布会消耗 API 用量。模型可通过 Repository Variable `RELEASE_LLM_MODELS` 指定。当前评测是合成数据保真度检查，不是主应用端到端质量认证。已核对 [v2.1.0 真实 GHCR 发布记录](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538)：真实 LLM Gate、backend gate、Docker smoke 和镜像推送均通过；发布后的拉取启动验收尚未执行。详见 [架构、证据、运行及回滚](docs/LLMOPS_RELEASE.md)。
+**范围：**发布 Gate 默认 Gemini、每模型 2 个案例、最多 6 次调用，要求 100% 通过；触发发布会消耗 API 用量。模型可通过 Repository Variable `RELEASE_LLM_MODELS` 指定。当前评测是合成数据保真度检查，不是主应用端到端质量认证。已核对 [v2.1.0 真实 GHCR 发布记录](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538)：真实 LLM Gate、backend gate、Docker smoke 和镜像推送均通过；后续 [v2.1.1 发布](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40571513998) 已完成按 digest 拉取和容器核心模块导入 smoke；FastAPI/HTTP 健康检查与生产部署仍未验证。详见 [架构、证据、运行及回滚](docs/LLMOPS_RELEASE.md)。
 
 
 ## Upstream application guide
@@ -47,3 +47,11 @@ python -m unittest discover -s tests -p 'test_release_gate.py' -v
 - **镜像：** `ghcr.io/atlas-schulter/daily_stock_analysis:v2.1.0`；不可变 digest 见 [发布证据](docs/LLMOPS_RELEASE.md#verified-release-v210)。
 - **阻断证据：** [错误报告演练](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40476357498) 中错误 Gate 失败，依赖它的标记 job 跳过。
 - **面试演示：** [3 分钟操作路线、讲稿与追问](docs/DEMO_WALKTHROUGH.md)。原始 Gate 文件已归档到 [evidence/release-v2.1.0](docs/evidence/release-v2.1.0/)，避免仅依赖临时 Actions artifacts。
+
+## 发布后验收（v2.1.1）
+
+[Docker Publish #40571513998](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40571513998) 已通过真实 LLM Gate、后端检查、镜像推送及 `Verify published GHCR image`。源码为 `3c97bd2fcb89fb62e07f9d8e8895a4aefd4f8dca`。
+
+发布后的步骤用构建输出 digest 从 GHCR 拉取同一镜像，覆盖默认 entrypoint，运行 Python 导入 config/storage/analyzer/notification 核心模块，输出 `Post-release verification passed`。这证明已发布镜像的拉取与导入 smoke 成功；没有启动 FastAPI 或调用 HTTP 健康接口。
+
+镜像：`ghcr.io/atlas-schulter/daily_stock_analysis:v2.1.1`；digest：`sha256:5b48240e2f5c2c3690b518b3cca9f316bd3b7478b9694e6f9abcfda29ac90571`。详见 [最新验收证据](docs/LLMOPS_RELEASE.md#verified-post-release-v211)。

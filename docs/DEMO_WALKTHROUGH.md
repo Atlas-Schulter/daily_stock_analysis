@@ -7,10 +7,10 @@
 | 标签页 | 打开内容 | 要看哪里 |
 | --- | --- | --- |
 | 1 | [项目 README](../README.md) | 贡献表和架构图 |
-| 2 | [真实发布运行](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538) | 三个 job 的依赖图 |
-| 3 | [实际 Gate 结果](evidence/release-v2.1.0/quality_gate.json) | passed、expected_pairs、quality_passed_pairs、error_rows |
+| 2 | [真实发布运行](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40571513998) | 三个 job 的依赖图，以及 Verify published GHCR image step |
+| 3 | [实际 Gate 结果（v2.1.0 历史样本）](evidence/release-v2.1.0/quality_gate.json) | passed、expected_pairs、quality_passed_pairs、error_rows |
 | 4 | [阻断演练](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40476357498) | invalid-gate、blocked-publish-marker、verify-dependencies |
-| 5 | [来源证明](evidence/release-v2.1.0/release_provenance.json) 和 [发布证据表](LLMOPS_RELEASE.md#verified-release-v210) | source_sha、tag、digest |
+| 5 | [来源证明](evidence/release-v2.1.0/release_provenance.json) （v2.1.0 历史样本）和 [最新发布证据表](LLMOPS_RELEASE.md#verified-post-release-v211) | source_sha、tag、digest |
 
 ## 操作与讲稿（约 3 分钟）
 
@@ -33,7 +33,7 @@
 操作：切换 Docker Publish，依次指向 resolve-source、llm-quality / quality、build-and-push。
 
 讲稿：
-> 发布先把版本 tag 解析成 commit SHA，检查和构建都使用这个版本。build-and-push 通过 needs 依赖质量 job，通过之后还要跑后端检查和 Docker smoke。这次 v2.1.0 的整条链路已成功，日志记录了 GHCR 镜像 digest。我用 digest 标识这次发布，避免 latest 后来移动造成混淆。
+> 发布先把版本 tag 解析成 commit SHA，检查和构建都使用这个版本。build-and-push 通过 needs 依赖质量 job，通过之后还要跑后端检查和 Docker smoke。这次 v2.1.1 还按发布输出的 digest 从 GHCR 拉回同一镜像，并在容器里成功导入核心模块。请看 Verify published GHCR image 的成功日志。这是发布后 smoke，尚未启动 HTTP 服务。
 
 ### 1:35–2:15：展示失败确实被拦截
 
@@ -44,17 +44,17 @@
 
 ### 2:15–2:40：可追溯性与踩坑
 
-操作：显示 provenance 的 source_sha，和发布证据表中的 tag/SHA 对照。
+操作：显示最新发布证据表的源码 SHA 和 digest；若打开归档 provenance，说明它是 v2.1.0 历史样本，不能与 v2.1.1 混用。
 
 讲稿：
-> 本次 Workflow 从 main 启动，但评测和构建的是 v2.1.0 指向的 49bd537。Workflow 版本和发布源码不是同一个概念，所以我把实际 source SHA 写入 provenance。我还修过一个真实问题：Prompt 没讲清顶层字段到嵌套对象的映射，模型把 observations 当成缺失数据。修复时明确了映射并更新 Prompt 版本，没有放宽 Gate。
+> 这次 v2.1.1 的源码 SHA 是 3c97bd2，推送和拉取的 digest 相同。前次 v2.1.0 从 main 手动启动，但评测的是 tag 指向的 49bd537。这说明不能仅凭 Workflow 的 head SHA 推断发布源码，要核对实际 provenance 和镜像标识。我还修过一个真实问题：Prompt 没讲清顶层字段到嵌套对象的映射，模型把 observations 当成缺失数据。修复时明确了映射并更新 Prompt 版本，没有放宽 Gate。
 
 ### 2:40–3:00：边界和下一步
 
 操作：回到 README 范围说明。
 
 讲稿：
-> 当前证据证明了小样本 LLM 检查与镜像发布的集成，以及失败依赖阻断。这是专用合成 Prompt 的评测，不能代表股票建议正确，也没有覆盖生产 Prompt 的全部行为。发布后镜像的拉取启动验收和生产部署还没有完成；下一步应补真实应用的回归数据和产物验收。
+> 当前证据证明了小样本 LLM 检查与镜像发布的集成，以及失败依赖阻断。这是专用合成 Prompt 的评测，不能代表股票建议正确，也没有覆盖生产 Prompt 的全部行为。现在已完成发布后的拉取和容器模块导入 smoke；下一步应补 FastAPI 健康检查与真实应用回归数据，生产部署仍未验证。
 
 ## 常见追问
 
@@ -79,9 +79,14 @@
 
 - 可以说：实现真实 LLM 小样本检查，并接入两条主应用镜像发布 Workflow；其中 Docker Publish 已有成功运行记录。
 - 可以说：单独的负面演练验证 Gate 失败后依赖 job 跳过。
-- 不要说：阻止了所有生产部署、验证了所有模型、完成了所有 20 例发布检查，或已完成发布后的镜像运行验收。
+- 可以说：v2.1.1 已按 digest 拉取已发布镜像，容器核心模块导入 smoke 通过。
+- 不要说：阻止了所有生产部署、验证了所有模型、完成了所有 20 例发布检查，或已完成 FastAPI 启动、HTTP 健康检查和生产部署。
 - 不要把上游股票分析系统整体描述为个人从零开发成果。
 
 ## 本次交付涉及哪些文件
 
 更新 README.md、docs/README_EN.md、docs/LLMOPS_RELEASE.md；新增本演示稿与 docs/evidence/release-v2.1.0 下的原始证据副本和说明。不修改 Python 或 Workflow，不触发新发布。文档回滚可独立 revert 本次提交，不涉及已发布镜像。
+
+## 最新演示核对点
+
+展示 v2.1.1 时打开 [publish job 日志](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40571513998/job/122427107567)，定位 Verify published GHCR image：digest 与推送相同，Docker pull 成功，随后实际输出 Post-release verification passed。旧 v2.1.0 归档继续作为历史 Gate 数据样本，不冒充最新运行的 artifact。
