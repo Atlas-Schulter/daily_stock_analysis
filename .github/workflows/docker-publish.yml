@@ -127,16 +127,6 @@ jobs:
           print('release-smoke-ok')
           "
 
-      - uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       # Build and publish the validated application image.
       - name: Publish Docker image to GHCR
         id: publish
