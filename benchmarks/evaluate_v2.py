@@ -6,18 +6,21 @@ from collections import defaultdict
 from pathlib import Path
 from benchmarks.quality_gate import evaluate_case
 
+# 读取已保存的评测记录，不调用模型；此分析入口允许文件不存在并返回空列表，严格 Gate 则会拒绝。
 def load_jsonl(path):
     p = Path(path)
     if not p.exists():
         return []
     return [json.loads(line) for line in p.read_text(encoding='utf-8').splitlines() if line.strip()]
 
+# 复用 Gate 的严格类型规则；这里只取结构问题，事实值由 check_facts 单独统计。
 def structure_ok(report):
     problems = evaluate_case(report, {})
     return not any(p == 'report_not_object' or p.startswith(('missing:', 'invalid:'))
                    and p != 'invalid:benchmark_observations' for p in problems)
 
 
+# 仅验证四个结构化事实字段，不代表自然语言分析中的所有陈述都正确。
 def check_facts(case, report):
     """Use the same strict observation checks as the quality gate."""
     obs = report.get('benchmark_observations') if isinstance(report, dict) else None
@@ -28,11 +31,13 @@ def check_facts(case, report):
               if p.startswith(('mismatch:', 'missing_observation:'))]
     return 4, 4 - len(errors), errors
 
+# 用排序和线性插值计算延迟分位数：P50 表示中间水平，P95 用于观察较慢请求。
 def percentile(values,p):
     if not values:return None
     vals=sorted(values);idx=(len(vals)-1)*p;lo=math.floor(idx);hi=math.ceil(idx)
     return round(vals[lo]+(vals[hi]-vals[lo])*(idx-lo),3)
 
+# 生成按模型分组的结果：质量按已有报告统计，token 和费用按全部 usage 统计。
 def evaluate(fixtures,reports,usage,models=None,errors=None):
     cases={c['case_id']:c for c in fixtures['cases']}
     usage_map={(u['case_id'],u['model']):u for u in usage}
@@ -53,6 +58,7 @@ def evaluate(fixtures,reports,usage,models=None,errors=None):
         rows.append(row)
     grouped=defaultdict(list)
     for row in rows:grouped[row['model']].append(row)
+    # 把全部失败、没有报告的模型也加入汇总，避免它们从比较结果中消失。
     for model in list(models or []) + [u['model'] for u in usage] + [e['model'] for e in (errors or [])]:
         grouped[model]
     summary={}
@@ -64,9 +70,11 @@ def evaluate(fixtures,reports,usage,models=None,errors=None):
         costs=[u.get('estimated_cost_usd') for u in model_usage]
         usage_pairs = {(u['model'], u['case_id']) for u in model_usage}
         missing_report_usage = any((model, r['case_id']) not in usage_pairs for r in records)
+        # 调用失败且没有 usage 时，无法确认完整费用；保留已知费用，但不能把总费用当作已知。
         unknown_failed_usage = any(e['model'] == model and e.get('error_type') != 'SkippedAfterRateLimit'
                                    and (model, e['case_id']) not in usage_pairs for e in (errors or []))
         cost_complete=bool(costs) and all(x is not None for x in costs) and not missing_report_usage and not unknown_failed_usage
+        # 空样本的质量比例用 None；known_cost_usd 是已知部分，total_cost_usd 只有费用完整时才有值。
         summary[model]={'evaluated_cases':count,'fixture_coverage':f'{count}/{len(cases)}',
            'structural_pass_rate':round(sum(r['structure_passed'] for r in records)/count,4) if count else None,
            'data_consistency_rate':round(correct/checked,4) if checked else None,
@@ -88,6 +96,7 @@ def evaluate(fixtures,reports,usage,models=None,errors=None):
                      'Unknown failed-call usage makes total cost incomplete; known_cost_usd is a partial estimate.',
                      'API retry/failure rate requires call-attempt events and is not inferred from successful records.']}
 
+# 离线分析命令：读取已有文件并生成比较结果，本身不阻断发布。
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--fixtures',default='benchmarks/fixtures/market_cases_v2.json')

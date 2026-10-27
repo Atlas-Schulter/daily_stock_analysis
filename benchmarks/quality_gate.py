@@ -7,6 +7,7 @@ from pathlib import Path
 REQUIRED = ('analysis_summary', 'operation_advice', 'sentiment_score')
 
 
+# 逐行读取 JSONL：每行是一条记录；文件缺失或某行损坏时直接报错，避免把无数据当作通过。
 def read_jsonl(path):
     if not path.is_file():
         raise ValueError(f'Missing file: {path}')
@@ -20,6 +21,7 @@ def read_jsonl(path):
     return rows
 
 
+# 比较数值时拒绝 bool、字符串和 NaN/Infinity；只容忍微小浮点误差。
 def same_number(observed, expected, tolerance=1e-6):
     if isinstance(observed, bool) or isinstance(expected, bool):
         return False
@@ -28,6 +30,7 @@ def same_number(observed, expected, tolerance=1e-6):
     return math.isfinite(observed) and math.isfinite(expected) and math.isclose(observed, expected, rel_tol=0, abs_tol=tolerance)
 
 
+# 检查单份报告的字段类型、非空文本和四个事实值，返回问题列表；空列表才代表通过。
 def evaluate_case(report, fixture):
     problems = []
     if not isinstance(report, dict):
@@ -46,6 +49,7 @@ def evaluate_case(report, fixture):
     sentence = dashboard.get('core_conclusion', {}).get('one_sentence') if isinstance(dashboard, dict) and isinstance(dashboard.get('core_conclusion'), dict) else None
     if not isinstance(sentence, str) or not sentence.strip():
         problems.append('invalid:dashboard.core_conclusion.one_sentence')
+    # 兼容顶层字段和嵌套 benchmark_observations 两种输入格式；输出必须始终是对象。
     expected = fixture.get('benchmark_observations', fixture)
     actual = report.get('benchmark_observations')
     if not isinstance(expected, dict):
@@ -68,6 +72,7 @@ def evaluate_case(report, fixture):
     return sorted(set(problems))
 
 
+# 把报告、用量、错误按 (model, case_id) 对齐，再判断是否达到整体门槛。
 def run_gate(fixtures_path, artifacts_dir, min_pass_rate=1.0, require_pricing=False, sample_limit=None):
     fixtures = json.loads(Path(fixtures_path).read_text(encoding='utf-8'))
     cases = fixtures.get('cases', [])
@@ -92,7 +97,9 @@ def run_gate(fixtures_path, artifacts_dir, min_pass_rate=1.0, require_pricing=Fa
             models.add(row['model'])
     if not models:
         raise ValueError('No model identified')
+    # 每个出现过的模型都必须覆盖本次选中的案例；漏交报告不会被排除出分母。
     expected_pairs = {(model, case_id) for model in models for case_id in case_map}
+    # 拒绝同一模型/案例的重复记录，避免多条结果相互覆盖后造成误判。
     reports_by_pair = {}
     for row in reports:
         pair = (row.get('model'), row.get('case_id'))
@@ -128,6 +135,7 @@ def run_gate(fixtures_path, artifacts_dir, min_pass_rate=1.0, require_pricing=Fa
         if not problems:
             passed += 1
         details.append({'model': model, 'case_id': case_id, 'passed': not problems, 'issues': sorted(set(problems))})
+    # 即使通过率够高，只要有错误或因限流跳过的记录，整个 Gate 仍失败。
     # Errors are failures irrespective of whether a report exists.
     rate = passed / len(expected_pairs)
     ok = not errors and rate >= min_pass_rate
@@ -139,6 +147,7 @@ def run_gate(fixtures_path, artifacts_dir, min_pass_rate=1.0, require_pricing=Fa
     }
 
 
+# CLI 入口：写入 quality_gate.json，并用退出码 0/1 通知 GitHub Actions 成功或失败。
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--fixtures', default='benchmarks/fixtures/market_cases_v2.json')
@@ -157,6 +166,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     (out / 'quality_gate.json').write_text(json.dumps(result, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     print(json.dumps(result, indent=2, ensure_ascii=False))
+    # 退出码非零让当前 step 失败；依赖此 job 的发布任务才会被 GitHub 跳过。
     raise SystemExit(0 if result['passed'] else 1)
 
 

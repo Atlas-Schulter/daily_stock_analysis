@@ -1,5 +1,6 @@
 name: Live Benchmark V2 (20 Cases)
 
+# 手动模型对比入口；sample_limit 是每模型案例数，max_calls 是所有模型合计的调用上限。
 on:
   workflow_dispatch:
     inputs:
@@ -26,10 +27,12 @@ on:
         type: boolean
         default: false
 
+# 读取仓库即可；此 Workflow 不推送代码、不发布镜像。
 permissions:
   contents: read
 
 jobs:
+  # 只有明确勾选 confirm_live 才执行，避免误触付费调用。
   live-benchmark-v2:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_live == true }}
     runs-on: ubuntu-latest
@@ -41,11 +44,13 @@ jobs:
           python-version: '3.11'
       - name: Install LiteLLM
         run: python -m pip install 'litellm>=1,<2'
+      # 先运行离线回归测试，提前发现代码问题，不消耗模型 API 额度。
       - name: Run offline evaluator and live-runner tests
         run: |
           python -m unittest discover -s tests -p 'test_live*.py' -v
           python -m unittest discover -s tests -p 'test_benchmark_v2.py' -v
           python -m unittest discover -s tests -p 'test_quality_gate.py' -v
+      # 使用同一个 live_v2 runner；输入通过环境变量传入命令，模型密钥从 Secrets 读取。
       - name: Execute model comparison
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -61,6 +66,7 @@ jobs:
             --sample-limit "$SAMPLE_LIMIT" \
             --max-calls "$MAX_CALLS" \
             --confirm-live
+      # 即使部分模型失败也保存产物。绿色仅表示流程执行完，质量分数要看比较报告或另外运行 Gate。
       - name: Upload results even after partial failure
         if: always()
         uses: actions/upload-artifact@v4

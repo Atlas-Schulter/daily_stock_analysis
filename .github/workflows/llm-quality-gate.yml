@@ -1,5 +1,6 @@
 name: LLM Quality Gate
 
+# 触发入口：匹配文件的 push 只执行离线测试；手动运行且勾选 run_live 才发起真实模型请求。
 on:
   push:
     paths:
@@ -29,10 +30,12 @@ on:
         type: number
         default: 2
 
+# 只授予读取仓库权限；API Key 通过 GitHub Secrets 注入，文件中不保存密钥值。
 permissions:
   contents: read
 
 jobs:
+  # 第一阶段：不联网调用模型，验证 runner、评分逻辑和失败处理。
   offline-quality-tests:
     runs-on: ubuntu-latest
     steps:
@@ -46,6 +49,7 @@ jobs:
           python -m unittest discover -s tests -p 'test_benchmark_v2.py' -v
           python -m unittest discover -s tests -p 'test_quality_gate.py' -v
 
+  # 第二阶段依赖离线测试成功；单独运行这条 Workflow 不会自动阻止其他发布 Workflow。
   live-quality-gate:
     needs: offline-quality-tests
     if: github.event_name == 'workflow_dispatch' && inputs.run_live == true
@@ -58,6 +62,7 @@ jobs:
           python-version: '3.11'
       - name: Install LiteLLM
         run: python -m pip install 'litellm>=1.0,<2'
+      # 执行真实调用并保存报告、用量和错误。runner 正常退出不等于报告通过质量检查。
       - name: Run real benchmark
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI }}
@@ -73,10 +78,12 @@ jobs:
             --sample-limit "$SAMPLE_LIMIT" \
             --max-calls 6 \
             --confirm-live
+      # 必须有这一步：100% 案例满足字段/事实要求且无错误，退出码才为 0。
       - name: Enforce quality gate
         env:
           SAMPLE_LIMIT: ${{ inputs.sample_limit }}
         run: python -m benchmarks.quality_gate --min-pass-rate 1.0 --sample-limit "$SAMPLE_LIMIT"
+      # always() 仅用于保留排错证据，即使 Gate 失败也上传；不会把失败结果改成成功。
       - name: Upload benchmark evidence
         if: always()
         uses: actions/upload-artifact@v4

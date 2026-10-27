@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 PROMPT_VERSION = "frozen-market-v2.1"
 SYSTEM_MESSAGE = "You are a data fidelity evaluator. Use only the supplied SYNTHETIC case data. Return valid JSON only; no markdown. Never invent missing facts."
 
+# 把合成案例编码为稳定排序的 JSON，生成模型指令；明确把输入顶层四个值复制到输出对象。
 def make_prompt(case):
     # Explicit keys, preserves null values in missing-data cases
     payload = json.dumps(case, sort_keys=True, ensure_ascii=False)
@@ -37,6 +38,7 @@ def make_prompt(case):
     )
 
 
+# 这里只检查能否解析为 JSON 对象，不判断内容质量；字段和事实校验交给 Quality Gate。
 def decode_report(text):
     """Decode strict JSON, with support for complete fenced JSON output."""
     if isinstance(text, list):
@@ -56,6 +58,7 @@ def decode_report(text):
     return data
 
 
+# 用异常类型或 HTTP 状态识别限流，不能仅凭错误文本含有“429”就停止调用。
 def is_quota_or_rate_limit(exc):
     """Detect throttling / quota failures without depending on LiteLLM imports."""
     status = getattr(exc, 'status_code', None)
@@ -64,6 +67,7 @@ def is_quota_or_rate_limit(exc):
     return status in (429, '429') or type(exc).__name__ == 'RateLimitError'
 
 
+# 调用 API 前校验间隔和 token 上限，避免配置错误发生在付费请求之后。
 def runtime_settings():
     """Validate settings before any paid call or artifact overwrite."""
     delay = float(os.getenv('LLM_BENCHMARK_DELAY_SECONDS', '2'))
@@ -75,6 +79,7 @@ def runtime_settings():
     return delay, max_tokens
 
 
+# 实际 API 适配层；统一返回正文、输入 token、输出 token、可选费用四个值，便于 mock 替换。
 def call_model(model, prompt):
     _, max_tokens = runtime_settings()
     import litellm
@@ -119,11 +124,13 @@ def call_model(model, prompt):
     # Keep the existing four-field caller contract for mock tests.
     return content, getattr(usage, 'prompt_tokens', None), getattr(usage, 'completion_tokens', None), None
 
+# 一条记录追加一行，便于逐次保存已完成请求的证据。
 def append_jsonl(path, item):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a', encoding='utf-8') as f:
         f.write(json.dumps(item, ensure_ascii=False, default=str) + '\n')
 
+# 编排案例循环。caller 默认真实请求，测试时注入 mock；先检查调用预算再清空旧产物。
 def run(fixtures, models, max_calls, output_dir, caller=call_model, sample_limit=None):
     delay, _ = runtime_settings()
     if not models or len(set(models)) != len(models):
@@ -137,6 +144,7 @@ def run(fixtures, models, max_calls, output_dir, caller=call_model, sample_limit
         cases = cases[:sample_limit]
     if not cases or len({c['case_id'] for c in cases}) != len(cases):
         raise ValueError('Cases must be non-empty with unique case_id values')
+    # 调用上限约束的是“选中案例数 × 模型数”，不是 token 或金额预算。
     planned = len(cases) * len(models)
     if planned > max_calls:
         raise ValueError(
@@ -157,9 +165,11 @@ def run(fixtures, models, max_calls, output_dir, caller=call_model, sample_limit
     for model in models:
         for index, case in enumerate(cases):
             prompt = make_prompt(case)
+            # 记录 Prompt 指纹：后续能判断两次评测是否使用了相同的指令和输入。
             digest = hashlib.sha256(
                 (SYSTEM_MESSAGE + '\n' + prompt).encode('utf-8')
             ).hexdigest()
+            # 只在请求之间等待；计时从等待之后开始，因此模型耗时不包含人为间隔。
             if attempted and delay > 0:
                 time.sleep(delay)
             started_at = datetime.now(timezone.utc)
@@ -189,6 +199,7 @@ def run(fixtures, models, max_calls, output_dir, caller=call_model, sample_limit
                     pricing['estimated_cost_usd'] = caller_cost
                     pricing['pricing_status'] = 'caller_reported'
 
+                # 先保存用量再解析正文：即使 JSON 错误，这次调用也可能已经计费。
                 usage_row = {
                     'case_id': case['case_id'],
                     'model': model,
@@ -229,6 +240,7 @@ def run(fixtures, models, max_calls, output_dir, caller=call_model, sample_limit
                     'error_message': str(exc)[:300],
                 })
                 print(f'ERROR {model} {case["case_id"]}: {type(exc).__name__}', flush=True)
+                # 遇到限流后跳过当前模型剩余案例，保留跳过证据；外层循环仍继续其他模型。
                 if rate_limited:
                     # Fail closed for the current provider/model; don't burn
                     # remaining calls once quotas or rate limits are hit.
@@ -252,6 +264,7 @@ def run(fixtures, models, max_calls, output_dir, caller=call_model, sample_limit
     results['failed_calls'] = failures
     results['skipped_calls'] = skipped
     results['successful_calls'] = succeeded
+    # 保留原口径：解析成功数 / 计划数；下面另报解析成功数 / 实际尝试数。两者都不是质量通过率。
     results['call_success_rate'] = round(succeeded / planned, 4)
     results['attempt_success_rate'] = round(succeeded / attempted, 4) if attempted else None
     output = output_dir / 'benchmark_comparison.json'
@@ -264,6 +277,7 @@ def run(fixtures, models, max_calls, output_dir, caller=call_model, sample_limit
     }, indent=2))
     return results
 
+# 命令行入口；只有显式传入 --confirm-live 才允许开始真实调用。
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--fixtures', default='benchmarks/fixtures/market_cases_v2.json')
