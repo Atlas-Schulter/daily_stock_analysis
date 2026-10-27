@@ -35,7 +35,16 @@ jobs:
           REQUESTED_TAG: ${{ inputs.release_tag }}
         run: |
           RELEASE_TAG="${REQUESTED_TAG:-$GITHUB_REF_NAME}"
+          # Validate the release tag format.
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          
+          # Restore the annotated tag object from the remote repository.
+          # Checkout on a tag-triggered workflow may locally replace the tag ref
+          # with the commit SHA, causing the tag type check to fail.
+          git fetch --force origin \
+            "+refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          
+          # Require an annotated tag, not a lightweight tag.
           test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
           SOURCE_SHA="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           echo "sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
