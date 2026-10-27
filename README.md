@@ -55,3 +55,7 @@ python -m unittest discover -s tests -p 'test_release_gate.py' -v
 发布后的步骤用构建输出 digest 从 GHCR 拉取同一镜像，覆盖默认 entrypoint，运行 Python 导入 config/storage/analyzer/notification 核心模块，输出 `Post-release verification passed`。这证明已发布镜像的拉取与导入 smoke 成功；没有启动 FastAPI 或调用 HTTP 健康接口。
 
 镜像：`ghcr.io/atlas-schulter/daily_stock_analysis:v2.1.1`；digest：`sha256:5b48240e2f5c2c3690b518b3cca9f316bd3b7478b9694e6f9abcfda29ac90571`。详见 [最新验收证据](docs/LLMOPS_RELEASE.md#verified-post-release-v211)。
+
+## P1–P3 计划验收
+
+原始基础目标已完成，见 [可勾选进度表](docs/PROJECT_PROGRESS.md)。P3 的部署证据来自 [Risk Alert 定时容器运行](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40457981665)：真实行情 3 只、数据错误 0、任务成功。此次没有触发风险，通知数为 0；真实 Discord 送达未由本次运行验证。它是独立 risk-alert 镜像的批处理部署，不是 FastAPI 或长期生产服务部署。

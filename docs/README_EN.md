@@ -20,3 +20,7 @@ See [the evidence ledger](LLMOPS_RELEASE.md#verified-release-v210), [archived or
 ## Post-release verification: v2.1.1
 
 Source `3c97bd2fcb89fb62e07f9d8e8895a4aefd4f8dca`; manifest digest `sha256:5b48240e2f5c2c3690b518b3cca9f316bd3b7478b9694e6f9abcfda29ac90571`. [Run #40571513998](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40571513998) passed the real-model Gate (2/2, zero errors), backend checks, push and post-push pull/import smoke. See [the evidence ledger](LLMOPS_RELEASE.md#verified-post-release-v211). This is distinct from full service startup or deployment acceptance.
+
+## Original P1–P3 acceptance
+
+The original foundational milestones are complete; see the [progress checklist](PROJECT_PROGRESS.md). The [scheduled risk-alert container run](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40457981665) pulled its dedicated published image, fetched three real quotes, evaluated risk and completed with zero market-data errors. No threshold was breached, so zero notifications were correctly sent. Actual Discord delivery was not exercised. This is scheduled batch deployment on a GitHub-hosted runner, separate from the main-application image release and from production web-service deployment.

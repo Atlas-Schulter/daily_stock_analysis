@@ -1,0 +1,46 @@
+{
+  "evidence_type": "curated summary of existing run and original artifact; not a newly executed task",
+  "run_id": 40457981665,
+  "run_url": "https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40457981665",
+  "event": "schedule",
+  "job_id": 122035661069,
+  "workflow_revision": "07ea902cc7641c3cabe6d643ceeb47d4848b6697",
+  "image_tag": "ghcr.io/atlas-schulter/daily_stock_analysis/risk-alert:sha-1f0116573f08",
+  "pulled_manifest_digest": "sha256:455cac88144c4078be43421a0e2cbde8b37ec1de8d91af8bfa083c4b4ebaa2d5",
+  "artifact_id": 12712569404,
+  "metrics_source": "risk_metrics.json copied unchanged from Actions artifact",
+  "stocks": [
+    "NVDA",
+    "AAPL",
+    "TSLA"
+  ],
+  "market_data_date": "2026-10-26",
+  "observed_changes_pct": {
+    "NVDA": 2.39,
+    "AAPL": -1.1,
+    "TSLA": 5.21
+  },
+  "drop_threshold_pct": 5,
+  "send_discord": true,
+  "result": {
+    "workflow": "stock-risk-alert",
+    "status": "success",
+    "stocks_checked": 3,
+    "market_data_errors": 0,
+    "alerts_detected": 0,
+    "alerts_sent": 0,
+    "duplicates_skipped": 0,
+    "llm_calls": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "llm_cost_usd": 0,
+    "duration_seconds": 1.72
+  },
+  "notification_delivery": "No alert triggered; real Discord delivery not exercised in this run",
+  "distinction": "Dedicated risk-alert image, separate from the v2.1.1 main-application image; image source revision not independently proven by tag text",
+  "not_performed": [
+    "New scheduled run",
+    "Threshold change",
+    "New Discord message"
+  ]
+}

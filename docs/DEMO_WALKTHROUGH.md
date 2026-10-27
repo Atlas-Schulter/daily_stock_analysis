@@ -54,7 +54,7 @@
 操作：回到 README 范围说明。
 
 讲稿：
-> 当前证据证明了小样本 LLM 检查与镜像发布的集成，以及失败依赖阻断。这是专用合成 Prompt 的评测，不能代表股票建议正确，也没有覆盖生产 Prompt 的全部行为。现在已完成发布后的拉取和容器模块导入 smoke；下一步应补 FastAPI 健康检查与真实应用回归数据，生产部署仍未验证。
+> 当前证据证明了小样本 LLM 检查与镜像发布的集成，以及失败依赖阻断。这是专用合成 Prompt 的评测，不能代表股票建议正确，也没有覆盖生产 Prompt 的全部行为。现在已完成发布后的拉取和容器模块导入 smoke；独立风险提醒镜像也已按定时任务运行，获取真实行情、执行风险判断并输出成功 metrics；本次没有触发告警。真实 Discord 送达仍待验证，FastAPI 健康检查只在以后部署 Web 服务时需要。
 
 ## 常见追问
 
@@ -90,3 +90,9 @@
 ## 最新演示核对点
 
 展示 v2.1.1 时打开 [publish job 日志](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40571513998/job/122427107567)，定位 Verify published GHCR image：digest 与推送相同，Docker pull 成功，随后实际输出 Post-release verification passed。旧 v2.1.0 归档继续作为历史 Gate 数据样本，不冒充最新运行的 artifact。
+
+## 如被问到“部署在哪里”
+
+打开 [Risk Alert 定时部署](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40457981665) 的 Run deployed container：它在 GitHub-hosted runner 上运行从 GHCR 拉取的独立 risk-alert 镜像，检查三只股票并写 metrics。解释这是定时批处理部署，而不是常驻服务。原始 metrics 已[归档](evidence/risk-deployment-40457981665/risk_metrics.json)。
+
+可直接说：“我验证了真实行情获取、风险判断和任务完成。这天没有达到跌幅阈值，因此没有发送通知；真实通知送达不能从这个成功运行推断。” 原始计划状态见 [P1–P3 Todo](PROJECT_PROGRESS.md)。

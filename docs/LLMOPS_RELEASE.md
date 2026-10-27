@@ -134,3 +134,35 @@ Checked against the actual publish-job log on 2026-10-27. This supplements the h
 The default application entrypoint was overridden with Python. No full FastAPI server startup, HTTP health/readiness check, functional analysis request or production deployment was performed by this step. Publication already occurred before verification; a failed post-push check would mark the workflow failed, not remove or roll back the published image automatically.
 
 中文版：第一步已完成的范围是“同 digest 拉取 + 容器核心模块导入 smoke”，不是完整服务健康验收。文档更新不修改 Workflow，不重跑发布，也不改变原 v2.1.0 的归档证据。回滚本次文档提交不影响已发布镜像。
+
+## Verified scheduled risk deployment
+
+### Observed run
+
+| Field | Evidence |
+| --- | --- |
+| Workflow | [Risk Alert Container Deployment #40457981665](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40457981665), schedule, success |
+| Workflow revision | `07ea902cc7641c3cabe6d643ceeb47d4848b6697` |
+| Dedicated deployed image | `ghcr.io/atlas-schulter/daily_stock_analysis/risk-alert:sha-1f0116573f08` |
+| Pull digest from log | `sha256:455cac88144c4078be43421a0e2cbde8b37ec1de8d91af8bfa083c4b4ebaa2d5` |
+| Application command | Default risk-image CMD runs `python -m src.risk_alert` |
+| Real data checked | NVDA +2.39%, AAPL -1.10%, TSLA +5.21%, market date 2026-10-26 |
+| Threshold | Daily drop of at least 5%; none of these quotes triggered it |
+| Completion | status success, stocks_checked 3, market_data_errors 0, duration_seconds 1.72 |
+| Notifications | SEND_DISCORD true; alerts_detected 0, alerts_sent 0, duplicates_skipped 0 |
+| Original artifact | 12712569404; [risk_metrics.json](evidence/risk-deployment-40457981665/risk_metrics.json), archived unchanged |
+| Summary | [verification.json](evidence/risk-deployment-40457981665/verification.json), curated from logs and metrics |
+
+### Acceptance judgment
+
+This is a real deployed scheduled batch workload: a published risk-alert image was pulled and executed, fetched data, evaluated its business rules and emitted results. A no-alert day is a valid successful path. It satisfies the original P3 goal of building an image and deploying a runnable task, alongside the separately verified main-image build/publish/smoke chain.
+
+It does not prove risk-triggered Discord delivery. Two earlier manual deployments (40389712939 and 40351268653) also recorded zero alerts with sending disabled. Real send, failure notification delivery and persisted deduplication across real notified runs remain unverified by these deployment records. Mock tests cover sending, failure-state handling and deduplication; these are a different evidence layer.
+
+The scheduled image is a distinct risk-alert package. Its workflow revision and tag name do not independently prove the precise image source commit. Do not attribute the main application release digest or LLM release gate to this independent image. This scheduled deployment uses GitHub-hosted infrastructure, not a continuously running production host.
+
+### Checks performed for this acceptance
+
+Read deployment/build workflow definitions, existing container job logs, risk logic and original metrics. Re-ran 12 risk unit/integration/state tests and 3 observability tests locally; all passed. These are current local-source tests, not tests executed inside the historical deployed image. No code, thresholds, schedules or notification settings were changed; no new messages or model calls were issued. Documentation rollback does not change deployed images.
+
+[Original P1–P3 checklist](PROJECT_PROGRESS.md) distinguishes completed foundational milestones and optional remaining acceptance items.

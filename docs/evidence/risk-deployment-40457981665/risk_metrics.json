@@ -1,0 +1,14 @@
+{
+  "workflow": "stock-risk-alert",
+  "status": "success",
+  "stocks_checked": 3,
+  "market_data_errors": 0,
+  "alerts_detected": 0,
+  "alerts_sent": 0,
+  "duplicates_skipped": 0,
+  "llm_calls": 0,
+  "input_tokens": 0,
+  "output_tokens": 0,
+  "llm_cost_usd": 0.0,
+  "duration_seconds": 1.72
+}
