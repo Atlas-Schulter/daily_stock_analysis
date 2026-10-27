@@ -31,7 +31,7 @@ The independent `risk-alert-container.yml`, `risk-alert-deploy.yml`, GitHub Rele
 - Two cases per model, at most six planned calls, no retries, five-second spacing, 20-minute job timeout. More than three models fails before calling APIs. Old tags without the benchmark implementation fail closed.
 - Missing keys, quotas, unavailable providers, invalid JSON, missing usage, incorrect fields, and skipped requests block release. Unknown pricing is allowed; costs remain explicitly unknown.
 - Calls are real and can incur cost when you trigger these release workflows. Ordinary pushes run only offline checks and the no-publish rehearsal.
-- Only the first two normal cases are the release smoke sample; run the 20-case Benchmark separately for broader coverage. No claim of comprehensive model validation.
+- Only the first two fixture cases are the release smoke sample; run the 20-case Benchmark separately for broader coverage. No claim of comprehensive model validation.
 
 ## Rehearsal: success and deliberate failure
 
@@ -56,7 +56,7 @@ The independent `risk-alert-container.yml`, `risk-alert-deploy.yml`, GitHub Rele
 | [Live Gemini gate after prompt v2.1](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40408110412) | Successful manual run; small synthetic sample only |
 | Local release regression | Four tests cover both publisher dependencies, same-source checkout, mandatory real gate, valid/invalid CLI outcomes, and absence of rehearsal publishing |
 | [No-publish rehearsal 40476357498](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40476357498) | Observed: regression success; valid-gate success; allowed-publish-marker success; invalid-gate failure; blocked-publish-marker skipped; verify-dependencies success. Overall red is the expected negative-test result. |
-| Actual GHCR publication with gate | Not executed in this integration; do not claim a proven successful push |
+| [Actual GHCR publication with gate](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538) | Verified v2.1.0: resolve-source, real LLM Gate and build-and-push all succeeded; immutable artifact details below |
 | Production deployment gating | Not implemented by this change |
 
 ## Run and inspect
@@ -71,7 +71,7 @@ A previous green Quality Gate run is not reused as release approval: every relea
 
 Revert the integration commit to restore previous workflow behavior; this also removes the release block and must be described explicitly. No image was published by the rehearsal, so no registry rollback is needed. Real provider compatibility, billing, full backend integration, Docker build/push and production deployment are distinct verification layers. Dependencies remain version ranges, so the runtime environment is not fully reproducible.
 
-中文版要点：本次实现的是两条主应用镜像发布流水线的质量依赖；演练用合成报告验证通过和阻断，不实际发布镜像。真实 Gemini 小样本已有成功记录，但尚无此次集成后真实 GHCR 发布证据。独立 risk-alert、桌面发行、生产部署和旧 Workflow 不在覆盖范围内。
+中文版要点：本次实现的是两条主应用镜像发布流水线的质量依赖；演练用合成报告验证通过和阻断，不实际发布镜像。真实 Gemini 小样本已有成功记录，现已核对 v2.1.0 真实 GHCR 发布成功记录；发布后的 pull/start 验收尚未执行。独立 risk-alert、桌面发行、生产部署和旧 Workflow 不在覆盖范围内。
 
 ## Integration change record
 
@@ -81,3 +81,36 @@ Revert the integration commit to restore previous workflow behavior; this also r
 - Local: 4 release regression tests and 6 quality-gate tests passed; Python compilation, YAML parsing and embedded Bash syntax checks passed.
 - Remote: [positive/negative dependency evidence](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40476357498). The negative job rejected incorrect close values; its dependent marker was skipped.
 - No paid API calls or image registry writes were performed for this rehearsal. The release jobs will make real API calls when explicitly triggered.
+
+## Verified release v2.1.0
+
+Evidence checked on 2026-10-27. Values below come from the Actions job logs and original artifact, not inferred from the green run icon.
+
+| Field | Verified value |
+| --- | --- |
+| Workflow run | [40529687538, attempt 1](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538) |
+| Trigger / workflow revision | `workflow_dispatch` on main, `fdf83f51e50378a2bd3829c644c75185c0785815` |
+| Release tag / checked and built source | `v2.1.0` / `49bd537335c4d874d194d27cd3e1dc3f566993b1` |
+| Model | `gemini/gemini-2.5-flash` |
+| Live Gate | `passed=true`, `quality_passed_pairs=2`, `expected_pairs=2`, `pass_rate=1.0`, `error_rows=0` |
+| Jobs | `resolve-source`, `llm-quality / quality`, `build-and-push`: all success |
+| Build checks | Backend gate and pre-publish Docker import smoke succeeded |
+| Image | `ghcr.io/atlas-schulter/daily_stock_analysis` |
+| Tags recorded in push logs | `v2.1.0`, `latest`, `sha-49bd537335c4d874d194d27cd3e1dc3f566993b1` |
+| Manifest digest from build/push metadata | `sha256:7d43c6d5268dac73381aa2ff2106bd931231f6b954e6a7b8df7e7ba4a38abb36` |
+| Original artifact | [12746235314](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538/artifacts/12746235314), Actions retention expires 2026-11-26 |
+| Durable copy | [Original gate files](evidence/release-v2.1.0/) copied unchanged from the artifact |
+
+The run's `head_sha` identifies the workflow revision. `release_provenance.json.source_sha` identifies the evaluated release source. These values differ by design in a manual tagged release. The source-SHA tag and metadata match the latter. Tags such as latest may move later; the recorded digest identifies this publication.
+
+Original archived files: `quality_gate.json`, `release_provenance.json`, `benchmark_comparison.json`, `reports.jsonl`, `usage.jsonl`, and `errors.jsonl`. The empty errors file is intentional. [Archive README](evidence/release-v2.1.0/README.md) states provenance and scope.
+
+### What this evidence establishes
+
+- A real LLM release gate was followed by backend checks, a local Docker import smoke and a successful GHCR push for the same release source.
+- The separate synthetic rehearsal proves a failing Gate prevents a dependent marker from running. It does not constitute an intentionally failed real registry publication attempt.
+- Post-push pull/start acceptance, service health checks, production deployment, every provider, and all 20 fixtures are not covered by this run. Model pricing is not required by this gate; unknown pricing must not be described as a free call.
+
+### Reproduce the presentation
+
+Use [the three-minute walkthrough](DEMO_WALKTHROUGH.md). It uses saved evidence, requires no new paid calls, and does not publish another image. Documentation changes can be rolled back independently of release workflows.

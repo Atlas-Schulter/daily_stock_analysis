@@ -1,0 +1,10 @@
+{
+  "source_sha": "49bd537335c4d874d194d27cd3e1dc3f566993b1",
+  "models": "gemini/gemini-2.5-flash",
+  "run_id": "40529687538",
+  "run_attempt": "1",
+  "mode": "live",
+  "sample_limit": 2,
+  "max_calls": 6,
+  "minimum_pass_rate": 1.0
+}

@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "pass_rate": 1.0,
+  "minimum_pass_rate": 1.0,
+  "expected_pairs": 2,
+  "quality_passed_pairs": 2,
+  "error_rows": 0,
+  "unpriced_allowed": true,
+  "details": [
+    {
+      "model": "gemini/gemini-2.5-flash",
+      "case_id": "synthetic_AAPL_002",
+      "passed": true,
+      "issues": []
+    },
+    {
+      "model": "gemini/gemini-2.5-flash",
+      "case_id": "synthetic_NVDA_001",
+      "passed": true,
+      "issues": []
+    }
+  ]
+}

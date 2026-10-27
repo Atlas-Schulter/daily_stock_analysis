@@ -1,0 +1,71 @@
+{
+  "schema_version": 2,
+  "fixture_cases": 20,
+  "evaluated_records": 2,
+  "by_model": {
+    "gemini/gemini-2.5-flash": {
+      "evaluated_cases": 2,
+      "fixture_coverage": "2/20",
+      "structural_pass_rate": 1.0,
+      "data_consistency_rate": 1.0,
+      "verifiable_fact_error_rate": 0.0,
+      "task_success_rate": 1.0,
+      "missing_usage_rate": 0.0,
+      "latency_p50_seconds": 4.923,
+      "latency_p95_seconds": 6.294,
+      "input_tokens": 798,
+      "output_tokens": 1493,
+      "usage_records": 2,
+      "known_cost_usd": 0,
+      "cost_complete": false,
+      "total_cost_usd": null,
+      "cost_per_success_usd": null
+    }
+  },
+  "records": [
+    {
+      "case_id": "synthetic_NVDA_001",
+      "category": "extreme_drop",
+      "model": "gemini/gemini-2.5-flash",
+      "structure_passed": true,
+      "fact_checked": 4,
+      "fact_correct": 4,
+      "fact_issues": [],
+      "task_success": true,
+      "input_tokens": 399,
+      "output_tokens": 786,
+      "usage_missing": false,
+      "latency_seconds": 6.446,
+      "estimated_cost_usd": null
+    },
+    {
+      "case_id": "synthetic_AAPL_002",
+      "category": "normal_rise",
+      "model": "gemini/gemini-2.5-flash",
+      "structure_passed": true,
+      "fact_checked": 4,
+      "fact_correct": 4,
+      "fact_issues": [],
+      "task_success": true,
+      "input_tokens": 399,
+      "output_tokens": 707,
+      "usage_missing": false,
+      "latency_seconds": 3.401,
+      "estimated_cost_usd": null
+    }
+  ],
+  "notes": [
+    "Metrics use only submitted sample reports, not fabricated outputs for remaining fixtures.",
+    "Data consistency checks only structured observations, not narrative statements.",
+    "Token, latency and cost metrics include all available usage, including invalid JSON responses.",
+    "Unknown failed-call usage makes total cost incomplete; known_cost_usd is a partial estimate.",
+    "API retry/failure rate requires call-attempt events and is not inferred from successful records."
+  ],
+  "planned_calls": 2,
+  "attempted_calls": 2,
+  "failed_calls": 0,
+  "skipped_calls": 0,
+  "successful_calls": 2,
+  "call_success_rate": 1.0,
+  "attempt_success_rate": 1.0
+}

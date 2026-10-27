@@ -8,3 +8,11 @@ See the [portfolio overview and architecture](../README.md) and [release operati
 
 
 For application installation and features, see the [upstream English guide](https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/README_EN.md). The upstream license and attribution are retained.
+
+## Verified release and demonstration
+
+[Docker Publish run #40529687538](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538) succeeded on 2026-10-27: real-model quality gate (2/2 cases, zero errors), backend checks, Docker smoke, and GHCR push all passed. Release `v2.1.0` evaluated and built source commit `49bd537335c4d874d194d27cd3e1dc3f566993b1`, independently of the workflow dispatch revision.
+
+Image: `ghcr.io/atlas-schulter/daily_stock_analysis:v2.1.0`. Immutable digest: `sha256:7d43c6d5268dac73381aa2ff2106bd931231f6b954e6a7b8df7e7ba4a38abb36`.
+
+See [the evidence ledger](LLMOPS_RELEASE.md#verified-release-v210), [archived original gate artifacts](evidence/release-v2.1.0/), and [the three-minute demo and interview questions](DEMO_WALKTHROUGH.md). A post-push pull/start acceptance test and production deployment are still unverified. The blocked dependency path was demonstrated separately with synthetic reports and a harmless marker job.

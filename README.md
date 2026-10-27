@@ -30,7 +30,7 @@ python -m unittest discover -s tests -p 'test_quality_gate.py' -v
 python -m unittest discover -s tests -p 'test_release_gate.py' -v
 ```
 
-**范围：**发布 Gate 默认 Gemini、每模型 2 个案例、最多 6 次调用，要求 100% 通过；触发发布会消耗 API 用量。模型可通过 Repository Variable `RELEASE_LLM_MODELS` 指定。当前评测是合成数据保真度检查，不是主应用端到端质量认证。无真实 GHCR 发布验证时，不声称已成功发布镜像。详见 [架构、证据、运行及回滚](docs/LLMOPS_RELEASE.md)。
+**范围：**发布 Gate 默认 Gemini、每模型 2 个案例、最多 6 次调用，要求 100% 通过；触发发布会消耗 API 用量。模型可通过 Repository Variable `RELEASE_LLM_MODELS` 指定。当前评测是合成数据保真度检查，不是主应用端到端质量认证。已核对 [v2.1.0 真实 GHCR 发布记录](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538)：真实 LLM Gate、backend gate、Docker smoke 和镜像推送均通过；发布后的拉取启动验收尚未执行。详见 [架构、证据、运行及回滚](docs/LLMOPS_RELEASE.md)。
 
 
 ## Upstream application guide
@@ -38,3 +38,12 @@ python -m unittest discover -s tests -p 'test_release_gate.py' -v
 股票应用的安装、使用与完整功能请查看 [upstream README](https://github.com/ZhuLinsen/daily_stock_analysis#readme)。本 fork 保留上游代码与许可证，本文聚焦新增 LLMOps 工程。
 
 [English portfolio overview](docs/README_EN.md) · [MIT license](LICENSE)
+
+## 已验证发布与演示
+
+- **真实发布：** [Docker Publish #40529687538](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40529687538)，2026-10-27 手动触发，三个 job 均通过。
+- **模型质量：** Gemini 2.5 Flash，两例均通过，零错误；这是发布 smoke sample，不是全部 20 例评测。
+- **代码版本：** `v2.1.0` → `49bd537335c4d874d194d27cd3e1dc3f566993b1`；Workflow 启动版本与待发布源码可以不同，以 provenance 为准。
+- **镜像：** `ghcr.io/atlas-schulter/daily_stock_analysis:v2.1.0`；不可变 digest 见 [发布证据](docs/LLMOPS_RELEASE.md#verified-release-v210)。
+- **阻断证据：** [错误报告演练](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40476357498) 中错误 Gate 失败，依赖它的标记 job 跳过。
+- **面试演示：** [3 分钟操作路线、讲稿与追问](docs/DEMO_WALKTHROUGH.md)。原始 Gate 文件已归档到 [evidence/release-v2.1.0](docs/evidence/release-v2.1.0/)，避免仅依赖临时 Actions artifacts。
