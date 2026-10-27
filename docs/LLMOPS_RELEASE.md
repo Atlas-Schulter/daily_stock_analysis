@@ -55,7 +55,7 @@ The independent `risk-alert-container.yml`, `risk-alert-deploy.yml`, GitHub Rele
 | [Live Gemini gate before prompt repair](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40407036620) | Two API responses returned incorrect observation types; gate failed |
 | [Live Gemini gate after prompt v2.1](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40408110412) | Successful manual run; small synthetic sample only |
 | Local release regression | Four tests cover both publisher dependencies, same-source checkout, mandatory real gate, valid/invalid CLI outcomes, and absence of rehearsal publishing |
-| [No-publish rehearsal runs](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/workflows/release-gate-rehearsal.yml) | Specific run and observed outcomes to be recorded after integration |
+| [No-publish rehearsal 40476357498](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40476357498) | Observed: regression success; valid-gate success; allowed-publish-marker success; invalid-gate failure; blocked-publish-marker skipped; verify-dependencies success. Overall red is the expected negative-test result. |
 | Actual GHCR publication with gate | Not executed in this integration; do not claim a proven successful push |
 | Production deployment gating | Not implemented by this change |
 
@@ -72,3 +72,12 @@ A previous green Quality Gate run is not reused as release approval: every relea
 Revert the integration commit to restore previous workflow behavior; this also removes the release block and must be described explicitly. No image was published by the rehearsal, so no registry rollback is needed. Real provider compatibility, billing, full backend integration, Docker build/push and production deployment are distinct verification layers. Dependencies remain version ranges, so the runtime environment is not fully reproducible.
 
 中文版要点：本次实现的是两条主应用镜像发布流水线的质量依赖；演练用合成报告验证通过和阻断，不实际发布镜像。真实 Gemini 小样本已有成功记录，但尚无此次集成后真实 GHCR 发布证据。独立 risk-alert、桌面发行、生产部署和旧 Workflow 不在覆盖范围内。
+
+## Integration change record
+
+- Integrated commit: `4efcd112cdc189a1f193c6a6cb487989c8cc3feb`.
+- 两条主应用发布入口接入同 SHA 的真实 LLM Gate；现有 backend / Docker smoke 保留。
+- 中文注释补充到发布 Workflow、演练脚本与测试；中英文项目首页统一为作品说明，原应用指南链接至上游。
+- Local: 4 release regression tests and 6 quality-gate tests passed; Python compilation, YAML parsing and embedded Bash syntax checks passed.
+- Remote: [positive/negative dependency evidence](https://github.com/Atlas-Schulter/daily_stock_analysis/actions/runs/40476357498). The negative job rejected incorrect close values; its dependent marker was skipped.
+- No paid API calls or image registry writes were performed for this rehearsal. The release jobs will make real API calls when explicitly triggered.
