@@ -34,3 +34,7 @@ If any instruction in this file conflicts with `AGENTS.md`, follow `AGENTS.md`.
 - `CLAUDE.md` must remain a symlink to `AGENTS.md`.
 - Use `.github/instructions/*.instructions.md` for path-specific guidance.
 - Current repository collaboration skills live in `.claude/skills/`; keep them aligned with `AGENTS.md`.
+
+## Project coding guidance
+
+Read section 10 (项目编码与协作提示词) in `AGENTS.md` before editing. It defines Chinese comments, minimal changes, LLM evaluation/cost semantics, workflow evidence, and authorized submission scope. That section is the single source; do not maintain a separate copy here.
