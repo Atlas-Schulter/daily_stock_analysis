@@ -1,0 +1,90 @@
+name: Reusable LLM Release Gate
+
+# 供发布 Workflow 复用；发布时检查指定 commit，不借用其他版本的绿色运行结果。
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        required: true
+        type: string
+      models:
+        required: true
+        type: string
+    secrets:
+      GEMINI:
+        required: false
+      AIHUBMIX_API_KEY:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+      ANTHROPIC_API_KEY:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  # 只读 job：跑离线回归，再真实调用模型，最后严格 Gate；失败会阻断依赖它的发布 job。
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_sha }}
+      # 检查输入是完整 SHA，且工作目录就是该版本，避免检测与构建版本不一致。
+      - name: Verify immutable source
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Install evaluation dependencies
+        run: python -m pip install 'litellm>=1,<2'
+      - name: Run offline regression checks
+        run: |
+          python -m unittest discover -s tests -p 'test_live*.py' -v
+          python -m unittest discover -s tests -p 'test_benchmark_v2.py' -v
+          python -m unittest discover -s tests -p 'test_quality_gate.py' -v
+      # 每模型两例，最多六次真实调用；密钥来自 Secrets，会消耗 API 用量。
+      - name: Evaluate real model responses
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI }}
+          AIHUBMIX_API_KEY: ${{ secrets.AIHUBMIX_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODELS: ${{ inputs.models }}
+          LLM_BENCHMARK_DELAY_SECONDS: '5'
+        run: |
+          python -m benchmarks.live_v2 --models "$MODELS" --sample-limit 2 --max-calls 6 --confirm-live
+      # runner 执行成功不等于质量通过，此命令必须返回 0 才允许发布。
+      - name: Enforce report quality before publishing
+        run: python -m benchmarks.quality_gate --min-pass-rate 1.0 --sample-limit 2
+      # 失败时也记录 source SHA 和参数，方便定位是哪版代码的评测证据。
+      - name: Record source provenance
+        if: always()
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          MODELS: ${{ inputs.models }}
+        run: |
+          mkdir -p artifacts/live_v2
+          python - <<'PYTHON'
+          import json, os
+          from pathlib import Path
+          Path('artifacts/live_v2/release_provenance.json').write_text(json.dumps({
+              'source_sha': os.environ['SOURCE_SHA'], 'models': os.environ['MODELS'],
+              'run_id': os.environ['GITHUB_RUN_ID'], 'run_attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'mode': 'live', 'sample_limit': 2, 'max_calls': 6, 'minimum_pass_rate': 1.0,
+          }, indent=2))
+          PYTHON
+      # always 仅保留排错证据，不改变 Gate 的失败状态。
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-llm-quality-${{ inputs.source_sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/live_v2/
+          retention-days: 30
+          if-no-files-found: error

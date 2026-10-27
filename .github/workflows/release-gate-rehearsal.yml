@@ -1,0 +1,98 @@
+name: Release Gate Rehearsal (no publish)
+
+# 不调用模型、不发布镜像的演练；反例 job 故意失败，所以整体红色是预期。
+on:
+  push:
+    paths:
+      - '.github/workflows/*gate*.yml'
+      - '.github/workflows/docker-publish.yml'
+      - '.github/workflows/ghcr-dockerhub.yml'
+      - 'benchmarks/**'
+      - 'scripts/rehearse_release_gate.py'
+      - 'tests/test_release_gate.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # 先验证真实发布 Workflow 的依赖与 SHA 绑定。
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'PyYAML>=6,<7'
+      - run: python -m unittest discover -s tests -p 'test_release_gate.py' -v
+
+  # 正确合成报告应通过真实 Gate CLI。
+  valid-gate:
+    needs: regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: python scripts/rehearse_release_gate.py --scenario valid --output artifacts/rehearsal
+      - run: python -m benchmarks.quality_gate --artifacts-dir artifacts/rehearsal --sample-limit 2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rehearsal-valid-${{ github.run_id }}
+          path: artifacts/rehearsal/
+
+  # 故意篡改 close，验证错误报告会产生非零退出码。
+  invalid-gate:
+    needs: regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - run: python scripts/rehearse_release_gate.py --scenario invalid --output artifacts/rehearsal
+      - name: Expected failure (incorrect close)
+        run: python -m benchmarks.quality_gate --artifacts-dir artifacts/rehearsal --sample-limit 2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rehearsal-invalid-${{ github.run_id }}
+          path: artifacts/rehearsal/
+
+  # 通过路径只执行无副作用标记，不创建镜像。
+  allowed-publish-marker:
+    needs: valid-gate
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'Valid evidence allowed this marker. No image was built or published.'
+
+  # 依赖失败 Gate，应显示 skipped；若执行则说明阻断演练异常。
+  blocked-publish-marker:
+    needs: invalid-gate
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'ERROR -- this marker must be skipped'; exit 1
+
+  # 不论前面结果如何都核对每个 job 的预期状态，以本 job 及证据判断演练。
+  verify-dependencies:
+    if: always()
+    needs: [regression, valid-gate, invalid-gate, allowed-publish-marker, blocked-publish-marker]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify expected outcomes
+        env:
+          REGRESSION: ${{ needs.regression.result }}
+          VALID: ${{ needs.valid-gate.result }}
+          INVALID: ${{ needs.invalid-gate.result }}
+          ALLOWED: ${{ needs.allowed-publish-marker.result }}
+          BLOCKED: ${{ needs.blocked-publish-marker.result }}
+        run: |
+          test "$REGRESSION" = success
+          test "$VALID" = success
+          test "$INVALID" = failure
+          test "$ALLOWED" = success
+          test "$BLOCKED" = skipped
+          echo 'Verified positive and negative dependency paths; synthetic evidence only; no registry writes.' >> "$GITHUB_STEP_SUMMARY"

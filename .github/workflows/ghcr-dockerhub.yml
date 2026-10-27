@@ -16,8 +16,21 @@ env:
   # Docker Hub 镜像名（需要根据实际情况设置）
   DOCKERHUB_IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
 
+permissions:
+  contents: read
+
 jobs:
+  # 另一条主应用发布入口也依赖相同 Gate，避免从双仓库发布路径绕过检查。
+  llm-quality:
+    uses: ./.github/workflows/llm-release-gate.yml
+    with:
+      source_sha: ${{ github.sha }}
+      models: ${{ vars.RELEASE_LLM_MODELS || 'gemini/gemini-2.5-flash' }}
+    secrets: inherit
+
+  # Gate 失败时跳过整个 job，包括 registry 登录和镜像推送。
   build-and-push:
+    needs: llm-quality
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -27,6 +40,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
