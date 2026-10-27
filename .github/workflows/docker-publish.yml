@@ -136,3 +136,42 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Build and publish the validated application image.
+      - name: Publish Docker image to GHCR
+        id: publish
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      # Verify the exact published image, not a locally rebuilt image.
+      - name: Verify published GHCR image
+        env:
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          set -euo pipefail
+      
+          # Pin the published image to its immutable digest.
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}@${IMAGE_DIGEST}"
+      
+          # Download the exact image that was just published.
+          docker pull "$IMAGE"
+      
+          # Verify that essential application modules can be imported.
+          # Override the scheduled-task entrypoint to avoid real API calls.
+          docker run --rm --entrypoint python "$IMAGE" -c "
+          from src.config import get_config
+          from src.storage import DatabaseManager
+          from src.analyzer import GeminiAnalyzer
+          from src.notification import NotificationService
+          print('Post-release verification passed')
+          "
+      
+          # Record the verified image reference in GitHub Actions.
+          echo "Verified image: $IMAGE" >> "$GITHUB_STEP_SUMMARY"
